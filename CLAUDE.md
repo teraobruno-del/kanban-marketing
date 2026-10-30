@@ -75,6 +75,12 @@ npm run test:integration # todos os testes, incluindo os com banco (serviços + 
 - `src/generated/` — código gerado pelo Prisma (não editar, fora do Git).
 - Testes ficam ao lado do código: `*.test.ts`.
 
+## Padrões de interface
+- Mensagens rápidas: `toast` (`@/components/ui/toaster`). Confirmações: `useConfirm()` (`@/components/ui/confirm`) — nunca `window.confirm`.
+- Cores de área/etiqueta: texto com `readableTextColor`; novas cores com `nextColor` (`src/lib/colors.ts`).
+- Prazo no quadro em linguagem natural: `describeDue` (`src/lib/format.ts`). Cor/estado vazio das colunas: `components/board/column-style.ts`.
+- Componentes shadcn/ui foram escritos à mão em `src/components/ui/` (o site do shadcn é bloqueado no ambiente de nuvem).
+
 ## Regras técnicas importantes
 - Permissão: **sempre** conferir no serviço (`src/lib/auth/permissions.ts`) — o Prisma conecta como dono das tabelas e ignora o RLS.
   O RLS protege o acesso direto pela API do Supabase (Realtime na F3). Mudou regra de permissão? Atualize os dois e os testes.

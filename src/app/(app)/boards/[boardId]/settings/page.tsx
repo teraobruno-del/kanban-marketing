@@ -22,10 +22,11 @@ export default async function BoardSettingsPage({ params }: { params: Promise<{ 
   const users = await listActiveUsers(prisma, user);
 
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-6 p-6">
+    <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
       <div>
-        <Link href={`/boards/${board.id}`} className="text-sm text-muted-foreground hover:underline">← Voltar ao quadro</Link>
-        <h1 className="mt-1 text-2xl font-semibold">Configurações · {board.name}</h1>
+        <Link href={`/boards/${board.id}`} className="text-sm text-muted-foreground hover:text-foreground hover:underline">← Voltar ao quadro</Link>
+        <h1 className="mt-1 text-2xl font-semibold">Configurações</h1>
+        <p className="text-sm text-muted-foreground">{board.name}</p>
       </div>
       <BoardSettings
         board={{ id: board.id, name: board.name, archived: board.archivedAt !== null }}

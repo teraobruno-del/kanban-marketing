@@ -157,6 +157,18 @@ describe.skipIf(!TEST_DATABASE_URL)("Serviços com banco de dados (integração)
       expect((await boards.listBoards(db, s.admin)).active).toHaveLength(2);
     });
 
+    it("tela inicial mostra contagens: em aberto, atrasadas, hoje e em aprovação", async () => {
+      const base2 = { description: "", requesterAreaId: s.area.id };
+      await cards.createCard(db, s.member, s.board.id, { ...base2, title: "a", dueDate: "2026-10-28" }, NOW); // atrasada
+      await cards.createCard(db, s.member, s.board.id, { ...base2, title: "b", dueDate: "2026-10-30" }, NOW); // hoje
+      const c = await cards.createCard(db, s.member, s.board.id, { ...base2, title: "c", dueDate: "2026-11-20" }, NOW);
+      await cards.moveCard(db, s.member, c.id, "APPROVAL", NOW);
+      const d = await cards.createCard(db, s.member, s.board.id, { ...base2, title: "d", dueDate: null }, NOW);
+      await cards.moveCard(db, s.member, d.id, "DONE", NOW); // finalizada não conta
+      const { active } = await boards.listBoards(db, s.member, "2026-10-30");
+      expect(active[0].stats).toEqual({ open: 3, overdue: 1, today: 1, approval: 1 });
+    });
+
     it("quadro arquivado some para Membro e vai para 'Arquivados' do Admin", async () => {
       await boards.setBoardArchived(db, s.admin, s.board.id, true);
       expect((await boards.listBoards(db, s.member)).active).toHaveLength(0);
@@ -215,6 +227,14 @@ describe.skipIf(!TEST_DATABASE_URL)("Serviços com banco de dados (integração)
       expect(auth.accounts.get("bia@empresa.com")).toBe(u.id);
       await expectCode(users.createUser(db, auth.port, s.admin, { name: "B", email: "bia@empresa.com", role: "MEMBER", password: "provisoria1" }), "INVALID");
       await expectCode(users.createUser(db, auth.port, s.member, { name: "C", email: "c@x.com", role: "MEMBER", password: "provisoria1" }), "FORBIDDEN");
+    });
+
+    it("reaproveita conta de login que já existia sem cadastro no sistema", async () => {
+      const auth = fakeAuth();
+      const { id } = await auth.port.createUser("leo@empresa.com", "x"); // conta "solta" no Supabase
+      const u = await users.createUser(db, auth.port, s.admin, { name: "Léo", email: "leo@empresa.com", role: "MEMBER", password: "provisoria1" });
+      expect(u.id).toBe(id);
+      expect(auth.accounts.size).toBe(1);
     });
 
     it("desativar bloqueia o login e preserva o histórico; não pode desativar a si mesmo", async () => {

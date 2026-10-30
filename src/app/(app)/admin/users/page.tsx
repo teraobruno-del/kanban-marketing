@@ -11,7 +11,7 @@ export default async function UsersPage() {
   if (user.role !== "ADMIN") notFound();
   const users = await listUsers(prisma, user);
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 p-6">
+    <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-6">
       <div>
         <h1 className="text-2xl font-semibold">Usuários</h1>
         <p className="text-sm text-muted-foreground">

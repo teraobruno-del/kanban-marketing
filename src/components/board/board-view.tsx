@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
-  DndContext, DragOverlay, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay, PointerSensor, KeyboardSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
-import { Settings, Plus } from "lucide-react";
+import { Settings, Plus, Eye } from "lucide-react";
 import type { BoardView as BoardViewData, BoardCard } from "@/server/services/cards";
 import { BOARD_COLUMNS, type ColumnKey } from "@/lib/board/columns";
 import { resolveDrop } from "@/lib/board/moves";
@@ -15,8 +15,10 @@ import { useToday } from "@/hooks/use-today";
 import { moveCardAction } from "@/server/actions/cards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { CardTile } from "./card-tile";
+import { COLUMN_STYLE } from "./column-style";
 import { CardDialog } from "@/components/card/card-dialog";
 
 interface Props {
@@ -34,29 +36,23 @@ export function BoardView({ view, initialToday, canEdit, isAdmin, currentUserId 
     view.cards,
     (cs, move: { id: string; stage: BoardCard["stage"] }) => cs.map((c) => (c.id === move.id ? { ...c, stage: move.stage } : c)),
   );
-
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [openCard, setOpenCard] = useState<string | "new" | null>(null);
   const [, startTransition] = useTransition();
+  const columnRefs = useRef<Partial<Record<ColumnKey, HTMLElement | null>>>({});
 
   const columns = useMemo(() => groupCardsByColumn(cards, today), [cards, today]);
   const activeCard = activeId ? cards.find((c) => c.id === activeId) ?? null : null;
+  const noActiveAreas = view.areas.every((a) => !a.isActive);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
     useSensor(KeyboardSensor),
   );
 
-  useEffect(() => {
-    if (!message) return;
-    const t = setTimeout(() => setMessage(null), 6000);
-    return () => clearTimeout(t);
-  }, [message]);
-
   function onDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
-    setMessage(null);
   }
 
   function onDragEnd(e: DragEndEvent) {
@@ -67,59 +63,95 @@ export function BoardView({ view, initialToday, canEdit, isAdmin, currentUserId 
 
     const result = resolveDrop(card, target, today);
     if (!result.ok) {
-      if (!result.sameColumn) setMessage(result.reason);
+      if (!result.sameColumn) toast.warning(result.reason);
       return;
     }
     startTransition(async () => {
       applyMove({ id: card.id, stage: result.stage });
       const r = await moveCardAction(card.id, target);
-      if (!r.ok) setMessage(r.error);
+      if (!r.ok) toast.error(r.error);
     });
   }
 
+  const scrollTo = (key: ColumnKey) =>
+    columnRefs.current[key]?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3">
-        <h1 className="text-lg font-semibold">{view.board.name}</h1>
-        {view.board.archived && <Badge variant="secondary">Arquivado</Badge>}
-        {!canEdit && !view.board.archived && <Badge variant="outline">Somente leitura</Badge>}
-        <div className="ml-auto flex gap-2">
-          {canEdit && (
-            <Button size="sm" onClick={() => setOpenCard("new")} disabled={view.areas.every((a) => !a.isActive)}>
-              <Plus /> Nova tarefa
-            </Button>
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Cabeçalho do quadro */}
+      <div className="border-b bg-background px-3 pt-3 sm:px-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="mr-1 truncate text-lg font-semibold">{view.board.name}</h1>
+          {view.board.archived && <Badge variant="secondary">Arquivado</Badge>}
+          {!canEdit && !view.board.archived && (
+            <Badge variant="outline" className="gap-1"><Eye /> Somente leitura</Badge>
           )}
-          {isAdmin && (
-            <Button size="sm" variant="outline" asChild>
-              <Link href={`/boards/${view.board.id}/settings`}><Settings /> Configurações</Link>
-            </Button>
-          )}
+          <div className="ml-auto flex gap-2">
+            {isAdmin && (
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`/boards/${view.board.id}/settings`} aria-label="Configurações do quadro">
+                  <Settings /> <span className="hidden sm:inline">Configurações</span>
+                </Link>
+              </Button>
+            )}
+            {canEdit && (
+              <Button size="sm" onClick={() => setOpenCard("new")} disabled={noActiveAreas}>
+                <Plus /> Nova tarefa
+              </Button>
+            )}
+          </div>
         </div>
+
+        {/* Atalhos para as 8 colunas — nenhuma etapa fica escondida */}
+        <nav className="-mx-1 mt-2 flex gap-1 overflow-x-auto pb-2" aria-label="Ir para a coluna">
+          {BOARD_COLUMNS.map((col) => {
+            const count = columns[col.key].length;
+            const alert = col.key === "OVERDUE" && count > 0;
+            return (
+              <button
+                key={col.key}
+                onClick={() => scrollTo(col.key)}
+                className={cn(
+                  "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium whitespace-nowrap transition hover:bg-accent",
+                  alert && "border-red-300 bg-red-50 text-red-700 hover:bg-red-100",
+                )}
+              >
+                <span aria-hidden>{col.emoji}</span>
+                <span>{col.label}</span>
+                <span className={cn("rounded-full px-1.5 tabular-nums", alert ? "bg-red-600 text-white" : "bg-muted text-muted-foreground")}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
-      {canEdit && view.areas.every((a) => !a.isActive) && (
-        <div className="mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-          Este quadro ainda não tem áreas solicitantes ativas. {isAdmin ? "Cadastre-as em Configurações" : "Peça ao Administrador para cadastrá-las"} antes de criar tarefas.
-        </div>
-      )}
-
-      {message && (
-        <div role="status" className="fixed bottom-4 left-1/2 z-50 w-[min(90vw,32rem)] -translate-x-1/2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg">
-          {message}
+      {canEdit && noActiveAreas && (
+        <div className="mx-3 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 sm:mx-4">
+          Este quadro ainda não tem áreas solicitantes ativas.{" "}
+          {isAdmin ? (
+            <Link href={`/boards/${view.board.id}/settings`} className="font-medium underline">Cadastre-as em Configurações</Link>
+          ) : (
+            "Peça ao Administrador para cadastrá-las"
+          )}{" "}
+          antes de criar tarefas.
         </div>
       )}
 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
-        <div className="flex flex-1 gap-3 overflow-x-auto p-4">
+        <div className="flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto p-3 sm:snap-none sm:p-4">
           {BOARD_COLUMNS.map((col) => {
             const drop = activeCard ? resolveDrop(activeCard, col.key, today) : null;
             return (
               <Column
                 key={col.key}
+                ref={(el) => { columnRefs.current[col.key] = el; }}
                 columnKey={col.key}
-                title={`${col.emoji} ${col.label}`}
+                emoji={col.emoji}
+                title={col.label}
                 count={columns[col.key].length}
-                state={!drop ? "idle" : drop.ok ? "accept" : drop.sameColumn ? "idle" : "reject"}
+                state={!drop ? "idle" : drop.ok ? "accept" : drop.sameColumn ? "origin" : "reject"}
               >
                 {columns[col.key].map((card) => (
                   <DraggableCard
@@ -144,33 +176,51 @@ export function BoardView({ view, initialToday, canEdit, isAdmin, currentUserId 
         onCreated={(id) => setOpenCard(id)}
         board={view}
         currentUserId={currentUserId}
+        today={today}
       />
     </div>
   );
 }
 
 function Column({
-  columnKey, title, count, state, children,
+  ref, columnKey, emoji, title, count, state, children,
 }: {
-  columnKey: ColumnKey; title: string; count: number; state: "idle" | "accept" | "reject"; children: React.ReactNode;
+  ref: (el: HTMLElement | null) => void;
+  columnKey: ColumnKey; emoji: string; title: string; count: number;
+  state: "idle" | "accept" | "reject" | "origin"; children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: columnKey });
+  const style = COLUMN_STYLE[columnKey];
   return (
     <section
-      ref={setNodeRef}
+      ref={(el) => { setNodeRef(el); ref(el); }}
+      aria-label={`${title}: ${count} ${count === 1 ? "tarefa" : "tarefas"}`}
       className={cn(
-        "flex w-72 shrink-0 flex-col rounded-xl border bg-muted/50 transition",
-        columnKey === "OVERDUE" && "bg-red-50/70",
-        state === "accept" && "ring-2 ring-emerald-400",
+        "flex max-h-full w-[85vw] shrink-0 snap-start flex-col rounded-xl border border-t-4 bg-muted/60 transition sm:w-64",
+        style.tint,
+        state === "accept" && "ring-2 ring-emerald-500/70",
         state === "accept" && isOver && "bg-emerald-50",
-        state === "reject" && "opacity-50",
+        state === "reject" && "opacity-40",
       )}
+      style={{ borderTopColor: style.accent }}
     >
-      <header className="flex items-center justify-between px-3 py-2.5">
-        <h2 className="text-xs font-bold tracking-wide">{title}</h2>
-        <span className="rounded-full bg-background px-2 text-xs text-muted-foreground">{count}</span>
+      <header className="flex items-center justify-between gap-2 px-3 py-2.5">
+        <h2 className="flex items-center gap-1.5 truncate text-xs font-bold tracking-wide">
+          <span aria-hidden>{emoji}</span> {title}
+        </h2>
+        <span className="rounded-full bg-background px-2 text-xs font-medium text-muted-foreground tabular-nums">{count}</span>
       </header>
-      <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-3">{children}</div>
+      <div className="flex min-h-28 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-3">
+        {children}
+        {count === 0 && (
+          <p className={cn(
+            "rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground",
+            state === "accept" && "border-emerald-400 text-emerald-700",
+          )}>
+            {state === "accept" ? "Solte aqui" : style.empty}
+          </p>
+        )}
+      </div>
     </section>
   );
 }
@@ -184,13 +234,19 @@ function DraggableCard({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      aria-roledescription={disabled ? undefined : "card arrastável"}
+      aria-label={card.title}
       onClick={onOpen}
       onKeyDown={(e) => {
         // Enter abre o card; Espaço começa a arrastar pelo teclado.
         if (e.key === "Enter") return onOpen();
         listeners?.onKeyDown?.(e);
       }}
-      className={cn("cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg", hidden && "opacity-30")}
+      className={cn(
+        "cursor-pointer rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        !disabled && "touch-manipulation",
+        hidden && "opacity-30",
+      )}
     >
       <CardTile card={card} today={today} />
     </div>

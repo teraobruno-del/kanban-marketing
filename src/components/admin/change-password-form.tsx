@@ -9,7 +9,7 @@ import { Alert } from "@/components/ui/alert";
 export function ChangePasswordForm() {
   const [state, action, pending] = useActionState<FormState, FormData>(changePasswordAction, {});
   return (
-    <form action={action} className="space-y-4 rounded-xl border p-4">
+    <form action={action} className="space-y-4 rounded-xl border bg-background p-4">
       <h2 className="font-medium">Trocar senha</h2>
       {state.error && <Alert variant="destructive">{state.error}</Alert>}
       {state.success && <Alert>{state.success}</Alert>}

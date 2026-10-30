@@ -18,6 +18,7 @@ export default async function BoardPage({ params }: { params: Promise<{ boardId:
     throw e;
   }
   return (
+    <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
     <BoardView
       view={view}
       initialToday={todayInSaoPaulo()}
@@ -25,5 +26,6 @@ export default async function BoardPage({ params }: { params: Promise<{ boardId:
       isAdmin={user.role === "ADMIN"}
       currentUserId={user.id}
     />
+    </div>
   );
 }

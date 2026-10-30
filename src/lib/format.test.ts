@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateOnly, formatDateOnlyShort, formatDateTime, initials } from "./format";
+import { describeDue, formatDateOnly, formatDateOnlyShort, formatDateTime, initials } from "./format";
 
 describe("Formatação para a tela", () => {
   it("datas no padrão brasileiro", () => {
@@ -12,5 +12,24 @@ describe("Formatação para a tela", () => {
   it("iniciais do nome", () => {
     expect(initials("Ana Maria Souza")).toBe("AS");
     expect(initials("Bia")).toBe("B");
+  });
+});
+
+describe("Prazo em linguagem natural", () => {
+  const today = "2026-10-28"; // quarta
+  it("atrasado, hoje, amanhã", () => {
+    expect(describeDue("2026-10-27", today)).toEqual({ text: "Atrasado há 1 dia", tone: "overdue" });
+    expect(describeDue("2026-10-20", today)).toEqual({ text: "Atrasado há 8 dias", tone: "overdue" });
+    expect(describeDue(today, today)).toEqual({ text: "Hoje", tone: "today" });
+    expect(describeDue("2026-10-29", today)).toEqual({ text: "Amanhã", tone: "soon" });
+  });
+  it("resto da semana mostra o dia; depois, só a data", () => {
+    expect(describeDue("2026-10-30", today)).toEqual({ text: "sex 30/10", tone: "soon" });
+    expect(describeDue("2026-11-01", today)).toEqual({ text: "dom 01/11", tone: "soon" });
+    expect(describeDue("2026-11-02", today)).toEqual({ text: "02/11", tone: "normal" });
+    expect(describeDue("2027-01-15", today)).toEqual({ text: "15/01/2027", tone: "normal" });
+  });
+  it("atraso conta dias de calendário, inclusive na virada do ano", () => {
+    expect(describeDue("2025-12-31", "2026-01-02").text).toBe("Atrasado há 2 dias");
   });
 });

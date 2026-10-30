@@ -45,6 +45,16 @@ export async function createUser(db: Db, auth: AuthAdminPort, actor: Actor, raw:
   const exists = await db.user.findUnique({ where: { email: input.email } });
   if (exists) throw invalid("Já existe um usuário com este e-mail.");
 
+  // Já existe conta de login sem cadastro no sistema (ex.: tentativa com Google, cadastro interrompido):
+  // reaproveita a conta e define a senha provisória.
+  const existingId = await auth.findUserIdByEmail(input.email);
+  if (existingId) {
+    if (await db.user.findUnique({ where: { id: existingId } })) throw invalid("Já existe um usuário com este e-mail.");
+    await auth.setPassword(existingId, input.password);
+    await auth.setBanned(existingId, false);
+    return db.user.create({ data: { id: existingId, email: input.email, name: input.name, role: input.role } });
+  }
+
   const { id } = await auth.createUser(input.email, input.password);
   try {
     return await db.user.create({ data: { id, email: input.email, name: input.name, role: input.role } });

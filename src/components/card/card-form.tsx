@@ -1,7 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import type { BoardView } from "@/server/services/cards";
 import type { CardInput } from "@/lib/validation/schemas";
+import { readableTextColor } from "@/lib/colors";
+import { initials } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,147 +31,216 @@ interface Props {
   /** Pode alterar o prazo (Admin, ou Membro que criou o card). */
   canChangeDueDate: boolean;
   submitLabel: string;
+  /** Mostra o botão de salvar mesmo sem alterações (criação). */
+  alwaysShowSubmit?: boolean;
   onSubmit: (values: CardInput) => Promise<string | undefined>;
+  onDirtyChange?: (dirty: boolean) => void;
+  /** Conteúdo extra da coluna principal (checklists, histórico). */
+  main?: React.ReactNode;
+  /** Conteúdo extra no topo da barra lateral (etapa atual) e no fim (ações). */
+  sideTop?: React.ReactNode;
+  sideBottom?: React.ReactNode;
 }
 
-export function CardForm({ board, initial, canEdit, canChangeDueDate, submitLabel, onSubmit }: Props) {
+const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+
+export function CardForm(props: Props) {
+  const { board, initial, canEdit, canChangeDueDate, submitLabel, alwaysShowSubmit, onSubmit, onDirtyChange } = props;
   const [v, setV] = useState<CardFormValues>(initial);
   const [tab, setTab] = useState<"write" | "preview">(initial.description ? "preview" : "write");
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
+
+  const dirty =
+    v.title !== initial.title ||
+    v.description !== initial.description ||
+    (v.dueDate ?? null) !== (initial.dueDate ?? null) ||
+    v.requesterAreaId !== initial.requesterAreaId ||
+    !sameSet(v.labelIds, initial.labelIds) ||
+    !sameSet(v.assigneeIds, initial.assigneeIds);
+
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
   // Itens desativados só aparecem se já estiverem no card (decisão 6A).
   const areas = board.areas.filter((a) => a.isActive || a.id === initial.requesterAreaId);
   const labels = board.labels.filter((l) => l.isActive || initial.labelIds.includes(l.id));
   const users = [
     ...board.assignableUsers,
-    ...initial.assigneeIds.filter((id) => !board.assignableUsers.some((u) => u.id === id)).map((id) => ({ id, name: "(sem acesso)", role: "MEMBER" })),
+    ...initial.assigneeIds
+      .filter((id) => !board.assignableUsers.some((u) => u.id === id))
+      .map((id) => ({ id, name: "(sem acesso)", role: "MEMBER" })),
   ];
-
   const toggle = (key: "labelIds" | "assigneeIds", id: string) =>
     setV((s) => ({ ...s, [key]: s[key].includes(id) ? s[key].filter((x) => x !== id) : [...s[key], id] }));
 
-  const dirty = JSON.stringify(v) !== JSON.stringify(initial);
+  const canSubmit = !saving && v.title.trim() !== "" && v.requesterAreaId !== "" && (dirty || alwaysShowSubmit);
+  const showBar = canEdit && (dirty || alwaysShowSubmit);
 
   return (
     <form
-      className="space-y-4"
       onSubmit={async (e) => {
         e.preventDefault();
+        if (!canSubmit) return;
         setSaving(true);
         const err = await onSubmit({ ...v, dueDate: v.dueDate || null });
         setSaving(false);
         setError(err);
       }}
     >
-      {error && <Alert variant="destructive">{error}</Alert>}
+      {error && <Alert variant="destructive" className="mb-4">{error}</Alert>}
 
-      <div className="space-y-2">
-        <Label htmlFor="title">Título</Label>
-        <Input id="title" value={v.title} disabled={!canEdit} onChange={(e) => setV({ ...v, title: e.target.value })} required maxLength={200} />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="area">Área solicitante</Label>
-          <NativeSelect id="area" value={v.requesterAreaId} disabled={!canEdit} required onChange={(e) => setV({ ...v, requesterAreaId: e.target.value })}>
-            <option value="" disabled>Escolha…</option>
-            {areas.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}{a.isActive ? "" : " (desativada)"}</option>
-            ))}
-          </NativeSelect>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="due">Prazo</Label>
-          <div className="flex gap-2">
+      <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_15rem]">
+        {/* Coluna principal */}
+        <div className="min-w-0 space-y-5">
+          <div>
+            <Label htmlFor="title" className="sr-only">Título</Label>
             <Input
-              id="due" type="date" value={v.dueDate ?? ""} disabled={!canChangeDueDate}
-              onChange={(e) => setV({ ...v, dueDate: e.target.value || null })}
+              id="title" value={v.title} disabled={!canEdit} required maxLength={200} placeholder="Título da tarefa"
+              onChange={(e) => setV({ ...v, title: e.target.value })}
+              className="h-11 border-transparent px-2 text-lg font-semibold shadow-none hover:border-input focus-visible:border-ring disabled:opacity-100 md:text-lg"
             />
-            {canChangeDueDate && v.dueDate && (
-              <Button type="button" variant="ghost" size="sm" className="h-9" onClick={() => setV({ ...v, dueDate: null })}>
-                Remover
-              </Button>
+          </div>
+
+          <section className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Descrição</h3>
+              {canEdit && (
+                <div className="flex rounded-md border p-0.5 text-xs" role="tablist">
+                  {(["write", "preview"] as const).map((t) => (
+                    <button
+                      key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
+                      className={cn("cursor-pointer rounded px-2 py-0.5", tab === t ? "bg-secondary font-medium" : "text-muted-foreground")}
+                    >
+                      {t === "write" ? "Escrever" : "Visualizar"}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {canEdit && tab === "write" ? (
+              <>
+                <Textarea
+                  id="desc" rows={6} value={v.description} placeholder="Detalhes, links, referências…"
+                  onChange={(e) => setV({ ...v, description: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Dica: **negrito**, *itálico*, - listas, [link](https://…)</p>
+              </>
+            ) : (
+              <div
+                className={cn("rounded-md border bg-muted/30 p-3", canEdit && "cursor-text hover:bg-muted/50")}
+                onClick={() => canEdit && setTab("write")}
+              >
+                <Markdown>{v.description}</Markdown>
+              </div>
+            )}
+          </section>
+
+          {props.main}
+        </div>
+
+        {/* Barra lateral */}
+        <aside className="space-y-5 max-md:order-first max-md:border-b max-md:pb-5 md:border-l md:pl-5">
+          {props.sideTop}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="due" className="text-xs text-muted-foreground">Prazo</Label>
+            <div className="flex items-center gap-1">
+              <Input
+                id="due" type="date" value={v.dueDate ?? ""} disabled={!canChangeDueDate}
+                onChange={(e) => setV({ ...v, dueDate: e.target.value || null })}
+              />
+              {canChangeDueDate && v.dueDate && (
+                <Button type="button" variant="ghost" size="icon" aria-label="Remover prazo" title="Remover prazo"
+                  onClick={() => setV({ ...v, dueDate: null })}>
+                  <X />
+                </Button>
+              )}
+            </div>
+            {canEdit && !canChangeDueDate && (
+              <p className="text-xs text-muted-foreground">Só o Administrador ou quem criou a tarefa pode mudar o prazo.</p>
+            )}
+            {canChangeDueDate && !v.dueDate && (
+              <p className="text-xs text-muted-foreground">Sem prazo, a tarefa fica em NOVAS DEMANDAS.</p>
             )}
           </div>
-          {canEdit && !canChangeDueDate && (
-            <p className="text-xs text-muted-foreground">Só o Administrador ou quem criou o card pode alterar o prazo.</p>
-          )}
-        </div>
-      </div>
 
-      <div className="space-y-2">
-        <Label>Etiquetas</Label>
-        {labels.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Nenhuma etiqueta cadastrada neste quadro.</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {labels.map((l) => {
-              const on = v.labelIds.includes(l.id);
-              return (
-                <button
-                  key={l.id} type="button" disabled={!canEdit} onClick={() => toggle("labelIds", l.id)}
-                  className={cn("rounded-md border px-2 py-1 text-xs font-medium transition disabled:cursor-default", on ? "text-white" : "bg-background opacity-60 hover:opacity-100")}
-                  style={on ? { backgroundColor: l.color, borderColor: l.color } : { borderColor: l.color, color: l.color }}
-                  aria-pressed={on}
-                >
-                  {on ? "✓ " : ""}{l.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <Label>Responsáveis</Label>
-        <div className="flex flex-wrap gap-1.5">
-          {users.map((u) => {
-            const on = v.assigneeIds.includes(u.id);
-            return (
-              <button
-                key={u.id} type="button" disabled={!canEdit} onClick={() => toggle("assigneeIds", u.id)}
-                className={cn("rounded-full border px-2.5 py-1 text-xs transition disabled:cursor-default", on ? "border-slate-700 bg-slate-700 text-white" : "bg-background text-muted-foreground hover:text-foreground")}
-                aria-pressed={on}
-              >
-                {on ? "✓ " : ""}{u.name}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="desc">Descrição</Label>
-          {canEdit && (
-            <div className="flex rounded-md border p-0.5 text-xs">
-              {(["write", "preview"] as const).map((t) => (
-                <button
-                  key={t} type="button" onClick={() => setTab(t)}
-                  className={cn("rounded px-2 py-0.5", tab === t ? "bg-secondary font-medium" : "text-muted-foreground")}
-                >
-                  {t === "write" ? "Escrever" : "Visualizar"}
-                </button>
+          <div className="space-y-1.5">
+            <Label htmlFor="area" className="text-xs text-muted-foreground">Área solicitante</Label>
+            <NativeSelect id="area" value={v.requesterAreaId} disabled={!canEdit} required
+              onChange={(e) => setV({ ...v, requesterAreaId: e.target.value })}>
+              <option value="" disabled>Escolha…</option>
+              {areas.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}{a.isActive ? "" : " (desativada)"}</option>
               ))}
+            </NativeSelect>
+          </div>
+
+          <fieldset className="space-y-1.5">
+            <legend className="mb-1.5 text-xs font-medium text-muted-foreground">Etiquetas</legend>
+            {labels.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Nenhuma etiqueta neste quadro.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {labels.map((l) => {
+                  const on = v.labelIds.includes(l.id);
+                  if (!canEdit && !on) return null;
+                  return (
+                    <button
+                      key={l.id} type="button" disabled={!canEdit} onClick={() => toggle("labelIds", l.id)} aria-pressed={on}
+                      className={cn(
+                        "cursor-pointer rounded-md border-2 px-2 py-0.5 text-xs font-medium transition disabled:cursor-default",
+                        !on && "bg-background hover:bg-accent",
+                      )}
+                      style={on ? { backgroundColor: l.color, borderColor: l.color, color: readableTextColor(l.color) } : { borderColor: l.color }}
+                    >
+                      {on && "✓ "}{l.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </fieldset>
+
+          <fieldset className="space-y-1.5">
+            <legend className="mb-1.5 text-xs font-medium text-muted-foreground">Responsáveis</legend>
+            <div className="flex flex-col gap-1">
+              {users.map((u) => {
+                const on = v.assigneeIds.includes(u.id);
+                if (!canEdit && !on) return null;
+                return (
+                  <button
+                    key={u.id} type="button" disabled={!canEdit} onClick={() => toggle("assigneeIds", u.id)} aria-pressed={on}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition disabled:cursor-default",
+                      on ? "bg-secondary font-medium" : "text-muted-foreground hover:bg-accent",
+                    )}
+                  >
+                    <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold",
+                      on ? "bg-slate-700 text-white" : "bg-muted")}>
+                      {initials(u.name)}
+                    </span>
+                    <span className="truncate">{u.name}</span>
+                    {on && <span className="ml-auto text-xs">✓</span>}
+                  </button>
+                );
+              })}
+              {!canEdit && v.assigneeIds.length === 0 && <p className="text-xs text-muted-foreground">Ninguém.</p>}
             </div>
-          )}
-        </div>
-        {canEdit && tab === "write" ? (
-          <>
-            <Textarea id="desc" rows={6} value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} />
-            <p className="text-xs text-muted-foreground">Aceita Markdown: **negrito**, *itálico*, - listas, [link](https://…)</p>
-          </>
-        ) : (
-          <div className="rounded-md border bg-muted/30 p-3"><Markdown>{v.description}</Markdown></div>
-        )}
+          </fieldset>
+
+          {props.sideBottom}
+        </aside>
       </div>
 
-      {canEdit && (
-        <div className="flex justify-end">
-          <Button type="submit" disabled={saving || !dirty || !v.title.trim() || !v.requesterAreaId}>
-            {saving ? "Salvando…" : submitLabel}
-          </Button>
+      {showBar && (
+        <div className="sticky bottom-0 z-10 -mx-6 mt-6 -mb-6 flex items-center justify-end gap-2 border-t bg-background/95 px-6 py-3 backdrop-blur">
+          {dirty && !alwaysShowSubmit && (
+            <>
+              <span className="mr-auto text-xs text-amber-700">Alterações não salvas</span>
+              <Button type="button" variant="ghost" onClick={() => { setV(initial); onDirtyChange?.(false); }}>Descartar</Button>
+            </>
+          )}
+          <Button type="submit" disabled={!canSubmit}>{saving ? "Salvando…" : submitLabel}</Button>
         </div>
       )}
     </form>
