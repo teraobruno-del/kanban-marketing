@@ -115,6 +115,18 @@ describe.skipIf(!TEST_DATABASE_URL)("Segurança no banco (RLS)", () => {
     });
   });
 
+  it("cada usuário só vê os próprios avisos", async () => {
+    await db.notification.create({ data: { userId: s.member.id, type: "APPROVAL_REQUESTED", cardId: memberCardId, actorId: s.member2.id } });
+    expect(await count(s.member.id, "notifications")).toBe(1);
+    expect(await count(s.member2.id, "notifications")).toBe(0);
+    expect(await count(s.admin.id, "notifications")).toBe(0);
+    await as(s.member2.id, async (c) => {
+      await expect(
+        c.query("INSERT INTO notifications (id, user_id, type, card_id, actor_id) VALUES (gen_random_uuid(), $1, 'APPROVAL_REQUESTED', $2, $1)", [s.member.id, memberCardId]),
+      ).rejects.toThrow(/row-level security/);
+    });
+  });
+
   it("tabela interna de migrações fica invisível", async () => {
     expect(await count(s.admin.id, "_prisma_migrations")).toBe(0);
   });

@@ -38,6 +38,10 @@ Leia antes de qualquer trabalho:
 - Áreas e labels pertencem a cada quadro. Área é obrigatória e única por card. Em uso → só desativar.
 - Excluir card = lixeira (`deletedAt`). Anexos: máx. 10 MB (`MAX_ATTACHMENT_BYTES`), validar no navegador e no servidor.
 - Toda mudança de etapa gera `CardEvent` (fromStage, toStage, autor, data/hora) — base do dashboard.
+- **Aprovação (SPEC §6.E)**: entrar em APROVAÇÃO = "enviar para aprovação" (avisa o criador). Só quem criou o card
+  ou Administrador (`canApprove`) tira de APROVAÇÃO: Aprovar → DONE, Reprovar (motivo obrigatório) → CHANGES.
+  Ninguém arrasta para fora de APROVAÇÃO; no quadro, soltar em FINALIZADAS = aprovar, em ALTERAÇÃO = pedir motivo
+  (`planDrop` em `src/lib/board/moves.ts`). Avisos só no sistema (tabela `notifications`, sininho), nunca da própria ação.
 
 ## Stack
 Next.js 16 (App Router) · TypeScript · Tailwind 4 · shadcn/ui · dnd-kit · Supabase (Postgres, Auth, Storage, Realtime)
@@ -84,10 +88,12 @@ npm run test:integration # todos os testes, incluindo os com banco (serviços + 
 ## Regras técnicas importantes
 - Permissão: **sempre** conferir no serviço (`src/lib/auth/permissions.ts`) — o Prisma conecta como dono das tabelas e ignora o RLS.
   O RLS protege o acesso direto pela API do Supabase (Realtime na F3). Mudou regra de permissão? Atualize os dois e os testes.
-- Lógica de arrastar está em `resolveDrop` (`src/lib/board/moves.ts`) e é usada no navegador e no servidor.
+- Lógica de arrastar está em `planDrop`/`resolveDrop` (`src/lib/board/moves.ts`) e é usada no navegador e no servidor.
+- Serviços de aprovação: `src/server/services/approval.ts`; sininho: `src/server/services/notifications.ts`.
 - Next.js 16: `params`/`searchParams`/`cookies()` são assíncronos; `cacheComponents` desligado de propósito.
 
 ## Estado atual
 - Etapa 0 concluída. **F1 concluída** (login e-mail/senha + Google opcional, quadros, acessos, áreas/labels, usuários,
-  cards com checklist, arrastar e soltar, permissões + RLS). Próxima: **F2** — modal de data ao arrastar,
-  confirmação de checklist ao finalizar, recorrência.
+  cards com checklist, arrastar e soltar, permissões + RLS). Revisão de UX/UI feita.
+- **F1.5 concluída** (aprovação com avisos no sistema). Próxima: **F2** — modal de data ao arrastar,
+  confirmação de checklist ao finalizar, recorrência. Depois F3 (colaboração) e F4 (dashboard).

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  canBeAssignee, canChangeDueDate, canComment, canDeleteCard, canEditCards, canManage, canViewBoard,
+  canApprove, canBeAssignee, canChangeDueDate, canComment, canDeleteCard, canEditCards, canManage, canViewBoard,
   type Actor,
 } from "./permissions";
 
@@ -73,5 +73,19 @@ describe("Responsáveis (decisão 7A)", () => {
     expect(canBeAssignee(observer, inBoard)).toBe(false);
     expect(canBeAssignee(member, outBoard)).toBe(false);
     expect(canBeAssignee({ ...member, isActive: false }, inBoard)).toBe(false);
+  });
+});
+
+describe("Aprovar / reprovar (SPEC §6.E)", () => {
+  it("quem criou (Membro) e qualquer Administrador aprovam", () => {
+    expect(canApprove(member, inBoard, { createdById: "m" })).toBe(true);
+    expect(canApprove(admin, outBoard, { createdById: "outro" })).toBe(true);
+  });
+  it("outro Membro e Observador não aprovam", () => {
+    expect(canApprove(member, inBoard, { createdById: "outro" })).toBe(false);
+    expect(canApprove(observer, inBoard, { createdById: "o" })).toBe(false);
+  });
+  it("criador que perdeu acesso ao quadro não aprova", () => {
+    expect(canApprove(member, outBoard, { createdById: "m" })).toBe(false);
   });
 });

@@ -127,6 +127,21 @@ Esta regra vale quando um card recorrente é finalizado **pela primeira vez**. E
 ### D. Sem jobs agendados
 
 Como as colunas são calculadas, nenhuma regra depende de cron. O sistema não envia resumos por e-mail.
+Os avisos acontecem **dentro do sistema** (seção 6.E).
+
+### E. Aprovação (incluída em 30/10/2026, a pedido do dono)
+
+- **Enviar para aprovação**: botão no card (ou arrastar para APROVAÇÃO), a partir de NOVAS DEMANDAS, colunas de
+  prazo ou ALTERAÇÃO. Quem pode: Administrador ou Membro com acesso ao quadro. O criador do card é avisado.
+- **Quem aprova ou reprova**: quem criou o card **ou** qualquer Administrador ("aprovadores").
+- **Saída de APROVAÇÃO**: somente pelos aprovadores:
+  - **Aprovar** → FINALIZADAS (aplica a regra B — conclusão);
+  - **Reprovar** → ALTERAÇÃO, com **motivo obrigatório**, exibido em destaque no card e registrado no histórico.
+  - Arrastar para FINALIZADAS equivale a Aprovar; arrastar para ALTERAÇÃO abre o campo de motivo.
+    Ninguém arrasta o card de APROVAÇÃO para outras colunas.
+- **Avisos no sistema** (sininho no topo, com contador): o criador recebe "aguardando sua aprovação";
+  os responsáveis (e quem enviou) recebem "aprovado" ou "reprovado: motivo". Ninguém é avisado da própria ação.
+- O sininho também lista os cards **aguardando a aprovação** do usuário.
 
 ## 7. Usuários e permissões (RBAC)
 
@@ -142,12 +157,13 @@ Como as colunas são calculadas, nenhuma regra depende de cron. O sistema não e
 | Editar título, descrição, responsáveis, labels, checklist e anexos | ✅ | ✅ | ❌ |
 | Mover cards entre colunas | ✅ | ✅ | ❌ |
 | Alterar prazo | ✅ qualquer card | ✅ só cards que **ele mesmo criou** | ❌ |
+| Aprovar / reprovar (sair de APROVAÇÃO) | ✅ qualquer card | ✅ só cards que **ele mesmo criou** | ❌ |
 | Comentar | ✅ | ✅ | ✅ |
 | Excluir card | ✅ | ❌ | ❌ |
 | Gerenciar quadros, áreas, labels e usuários | ✅ | ❌ | ❌ |
 | Dashboard | ✅ | ❌ | ❌ |
 
-- A aprovação externa acontece fora do sistema ou pelos comentários. Quem move o card de APROVAÇÃO para FINALIZADAS ou para ALTERAÇÃO é um Administrador ou Membro.
+- A aprovação acontece no sistema (seção 6.E): quem tira o card de APROVAÇÃO é quem o criou ou um Administrador.
 - As permissões devem ser validadas **no servidor** e também por RLS no Supabase. Não basta esconder botões na interface.
 
 ## 8. Dashboard (somente Administrador)
@@ -213,6 +229,11 @@ Cada fase termina com os testes passando, um commit e uma explicação em lingua
 - Lista de quadros, criação de quadros e gestão de acesso.
 - Quadro com as 8 colunas, criação e edição de cards e arrastar e soltar.
 - Permissões da seção 7 aplicadas.
+
+### F1.5: Aprovação (incluída a pedido do dono)
+
+- Enviar para aprovação, aprovar e reprovar com motivo (seção 6.E).
+- Avisos no sistema (sininho) e lista "aguardando sua aprovação".
 
 ### F2: Automações
 

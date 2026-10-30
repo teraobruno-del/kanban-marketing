@@ -8,11 +8,14 @@ import {
 import { Settings, Plus, Eye } from "lucide-react";
 import type { BoardView as BoardViewData, BoardCard } from "@/server/services/cards";
 import { BOARD_COLUMNS, type ColumnKey } from "@/lib/board/columns";
-import { resolveDrop } from "@/lib/board/moves";
+import { planDrop, type DropPlan } from "@/lib/board/moves";
 import { groupCardsByColumn } from "@/lib/board/sort";
 import type { DateOnly } from "@/lib/dates/day";
 import { useToday } from "@/hooks/use-today";
 import { moveCardAction } from "@/server/actions/cards";
+import { approveCardAction, rejectCardAction } from "@/server/actions/approval";
+import { RejectDialog } from "@/components/card/reject-dialog";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
@@ -23,13 +26,15 @@ import { CardDialog } from "@/components/card/card-dialog";
 
 interface Props {
   view: BoardViewData;
+  /** Abre esta tarefa ao carregar (link vindo do sininho). */
+  initialCardId?: string;
   initialToday: DateOnly;
   canEdit: boolean;
   isAdmin: boolean;
   currentUserId: string;
 }
 
-export function BoardView({ view, initialToday, canEdit, isAdmin, currentUserId }: Props) {
+export function BoardView({ view, initialCardId, initialToday, canEdit, isAdmin, currentUserId }: Props) {
   const today = useToday(initialToday);
   // Mostra o card na coluna nova na hora; se o servidor recusar, ele volta sozinho.
   const [cards, applyMove] = useOptimistic(
@@ -37,13 +42,19 @@ export function BoardView({ view, initialToday, canEdit, isAdmin, currentUserId 
     (cs, move: { id: string; stage: BoardCard["stage"] }) => cs.map((c) => (c.id === move.id ? { ...c, stage: move.stage } : c)),
   );
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [openCard, setOpenCard] = useState<string | "new" | null>(null);
+  const [openCard, setOpenCard] = useState<string | "new" | null>(initialCardId ?? null);
+  const [rejecting, setRejecting] = useState<BoardCard | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
   const [, startTransition] = useTransition();
   const columnRefs = useRef<Partial<Record<ColumnKey, HTMLElement | null>>>({});
 
   const columns = useMemo(() => groupCardsByColumn(cards, today), [cards, today]);
   const activeCard = activeId ? cards.find((c) => c.id === activeId) ?? null : null;
   const noActiveAreas = view.areas.every((a) => !a.isActive);
+  // Pode aprovar/reprovar este card? (quem criou ou Administrador — SPEC §6.E)
+  const canApproveCard = (c: BoardCard) => canEdit && (isAdmin || c.createdById === currentUserId);
+  const planFor = (c: BoardCard, target: ColumnKey): DropPlan => planDrop(c, target, today, canApproveCard(c));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -61,16 +72,33 @@ export function BoardView({ view, initialToday, canEdit, isAdmin, currentUserId 
     const target = e.over?.id as ColumnKey | undefined;
     if (!card || !target) return;
 
-    const result = resolveDrop(card, target, today);
-    if (!result.ok) {
-      if (!result.sameColumn) toast.warning(result.reason);
-      return;
+    const plan = planFor(card, target);
+    switch (plan.kind) {
+      case "same":
+        return;
+      case "blocked":
+        toast.warning(plan.reason);
+        return;
+      case "reject":
+        setRejecting(card);
+        return;
+      case "approve":
+        startTransition(async () => {
+          applyMove({ id: card.id, stage: "DONE" });
+          const r = await approveCardAction(card.id);
+          if (!r.ok) toast.error(r.error);
+          else toast.success("Tarefa aprovada e finalizada.");
+        });
+        return;
+      case "request":
+      case "move":
+        startTransition(async () => {
+          applyMove({ id: card.id, stage: plan.kind === "request" ? "APPROVAL" : plan.stage });
+          const r = await moveCardAction(card.id, target);
+          if (!r.ok) toast.error(r.error);
+          else if (plan.kind === "request") toast.success("Enviada para aprovação. Quem criou a tarefa foi avisado(a).");
+        });
     }
-    startTransition(async () => {
-      applyMove({ id: card.id, stage: result.stage });
-      const r = await moveCardAction(card.id, target);
-      if (!r.ok) toast.error(r.error);
-    });
   }
 
   const scrollTo = (key: ColumnKey) =>
@@ -142,7 +170,7 @@ export function BoardView({ view, initialToday, canEdit, isAdmin, currentUserId 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
         <div className="flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto p-3 sm:snap-none sm:p-4">
           {BOARD_COLUMNS.map((col) => {
-            const drop = activeCard ? resolveDrop(activeCard, col.key, today) : null;
+            const drop = activeCard ? planFor(activeCard, col.key) : null;
             return (
               <Column
                 key={col.key}
@@ -151,7 +179,7 @@ export function BoardView({ view, initialToday, canEdit, isAdmin, currentUserId 
                 emoji={col.emoji}
                 title={col.label}
                 count={columns[col.key].length}
-                state={!drop ? "idle" : drop.ok ? "accept" : drop.sameColumn ? "origin" : "reject"}
+                state={!drop ? "idle" : drop.kind === "same" ? "origin" : drop.kind === "blocked" ? "reject" : "accept"}
               >
                 {columns[col.key].map((card) => (
                   <DraggableCard
@@ -159,6 +187,7 @@ export function BoardView({ view, initialToday, canEdit, isAdmin, currentUserId 
                     card={card}
                     today={today}
                     disabled={!canEdit}
+                    awaitingMe={card.stage === "APPROVAL" && canApproveCard(card)}
                     hidden={card.id === activeId}
                     onOpen={() => setOpenCard(card.id)}
                   />
@@ -170,9 +199,25 @@ export function BoardView({ view, initialToday, canEdit, isAdmin, currentUserId 
         <DragOverlay>{activeCard && <CardTile card={activeCard} today={today} dragging />}</DragOverlay>
       </DndContext>
 
+      <RejectDialog
+        open={rejecting !== null}
+        taskTitle={rejecting?.title}
+        onCancel={() => setRejecting(null)}
+        onConfirm={async (reason) => {
+          const r = await rejectCardAction(rejecting!.id, reason);
+          if (!r.ok) return r.error;
+          setRejecting(null);
+          toast.success("Tarefa reprovada. Os responsáveis foram avisados.");
+        }}
+      />
+
       <CardDialog
         cardId={openCard}
-        onOpenChange={(open) => !open && setOpenCard(null)}
+        onOpenChange={(open) => {
+          if (open) return;
+          setOpenCard(null);
+          if (initialCardId) router.replace(pathname, { scroll: false }); // limpa o ?card= do link
+        }}
         onCreated={(id) => setOpenCard(id)}
         board={view}
         currentUserId={currentUserId}
@@ -226,8 +271,8 @@ function Column({
 }
 
 function DraggableCard({
-  card, today, disabled, hidden, onOpen,
-}: { card: BoardCard; today: DateOnly; disabled: boolean; hidden: boolean; onOpen: () => void }) {
+  card, today, disabled, awaitingMe, hidden, onOpen,
+}: { card: BoardCard; today: DateOnly; disabled: boolean; awaitingMe: boolean; hidden: boolean; onOpen: () => void }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: card.id, disabled });
   return (
     <div
@@ -248,7 +293,7 @@ function DraggableCard({
         hidden && "opacity-30",
       )}
     >
-      <CardTile card={card} today={today} />
+      <CardTile card={card} today={today} awaitingMe={awaitingMe} />
     </div>
   );
 }

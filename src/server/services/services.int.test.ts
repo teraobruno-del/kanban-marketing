@@ -1,7 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/lib/db/client";
 import { AppError } from "@/server/errors";
+import * as approval from "./approval";
 import * as boards from "./boards";
+import * as notifications from "./notifications";
 import * as cards from "./cards";
 import * as users from "./users";
 import { seedScenario, testDb, TEST_DATABASE_URL } from "./test-db";
@@ -95,8 +97,8 @@ describe.skipIf(!TEST_DATABASE_URL)("Serviços com banco de dados (integração)
   describe("Mover card", () => {
     it("APROVAÇÃO → FINALIZADAS grava conclusão no prazo; reabrir limpa", async () => {
       const c = await cards.createCard(db, s.member, s.board.id, { ...base(), dueDate: "2026-10-30" }, NOW);
-      await cards.moveCard(db, s.member, c.id, "APPROVAL", NOW);
-      await cards.moveCard(db, s.member2, c.id, "DONE", NOW);
+      await cards.moveCard(db, s.member2, c.id, "APPROVAL", NOW);
+      await approval.approveCard(db, s.member, c.id, NOW); // quem criou aprova
       let after = await db.card.findUniqueOrThrow({ where: { id: c.id } });
       expect(after).toMatchObject({ stage: "DONE", completedOnTime: true });
       expect(after.completedAt?.toISOString()).toBe(NOW.toISOString());
@@ -106,15 +108,15 @@ describe.skipIf(!TEST_DATABASE_URL)("Serviços com banco de dados (integração)
       expect(after).toMatchObject({ stage: "CHANGES", completedAt: null, completedOnTime: null });
 
       const ev = await db.cardEvent.findMany({ where: { cardId: c.id }, orderBy: { createdAt: "asc" } });
-      expect(ev.map((e) => e.type)).toEqual(["CREATED", "STAGE_CHANGED", "COMPLETED", "REOPENED"]);
-      expect(ev[2]).toMatchObject({ fromStage: "APPROVAL", toStage: "DONE", actorId: s.member2.id });
+      expect(ev.map((e) => e.type)).toEqual(["CREATED", "APPROVAL_REQUESTED", "APPROVED", "REOPENED"]);
+      expect(ev[2]).toMatchObject({ fromStage: "APPROVAL", toStage: "DONE", actorId: s.member.id });
     });
 
     it("recusa ATRASADAS e coluna de prazo que não corresponde", async () => {
       const c = await cards.createCard(db, s.member, s.board.id, { ...base(), dueDate: "2026-11-20" }, NOW);
       await expectCode(cards.moveCard(db, s.member, c.id, "OVERDUE", NOW), "INVALID");
       await expectCode(cards.moveCard(db, s.member, c.id, "TODAY", NOW), "INVALID");
-      await cards.moveCard(db, s.member, c.id, "APPROVAL", NOW);
+      await cards.moveCard(db, s.member, c.id, "CHANGES", NOW);
       await cards.moveCard(db, s.member, c.id, "UPCOMING", NOW); // volta: corresponde ao prazo
       expect((await db.card.findUniqueOrThrow({ where: { id: c.id } })).stage).toBe("ACTIVE");
     });
@@ -122,6 +124,88 @@ describe.skipIf(!TEST_DATABASE_URL)("Serviços com banco de dados (integração)
     it("Observador não move", async () => {
       const c = await cards.createCard(db, s.member, s.board.id, base(), NOW);
       await expectCode(cards.moveCard(db, s.observer, c.id, "APPROVAL", NOW), "FORBIDDEN");
+    });
+  });
+
+  describe("Aprovação (SPEC §6.E)", () => {
+    // Card criado pelo Membro, com o Membro2 como responsável
+    async function cardInApproval(sender = s.member2) {
+      const c = await cards.createCard(db, s.member, s.board.id, { ...base(), dueDate: "2026-10-30", assigneeIds: [s.member2.id] }, NOW);
+      await approval.requestApproval(db, sender, c.id, NOW);
+      return c;
+    }
+    const inbox = async (u: { id: string; role: "ADMIN" | "MEMBER" | "OBSERVER"; isActive: boolean }) =>
+      (await notifications.listNotifications(db, u)).items;
+
+    it("enviar para aprovação avisa quem criou (e só ele)", async () => {
+      const c = await cardInApproval();
+      expect((await db.card.findUniqueOrThrow({ where: { id: c.id } })).stage).toBe("APPROVAL");
+      const n = await inbox(s.member);
+      expect(n).toHaveLength(1);
+      expect(n[0]).toMatchObject({ type: "APPROVAL_REQUESTED", actorName: "Membro2", read: false, card: { id: c.id } });
+      expect(await inbox(s.admin)).toHaveLength(0);
+      expect(await notifications.listPendingApprovals(db, s.member)).toHaveLength(1);
+      expect(await notifications.listPendingApprovals(db, s.admin)).toHaveLength(1);
+      expect(await notifications.listPendingApprovals(db, s.member2)).toHaveLength(0);
+    });
+
+    it("arrastar para APROVAÇÃO também conta como envio; ninguém é avisado da própria ação", async () => {
+      const c = await cards.createCard(db, s.member, s.board.id, base(), NOW);
+      await cards.moveCard(db, s.member, c.id, "APPROVAL", NOW);
+      const ev = await db.cardEvent.findFirstOrThrow({ where: { cardId: c.id, type: "APPROVAL_REQUESTED" } });
+      expect(ev).toMatchObject({ fromStage: "NEW", toStage: "APPROVAL" });
+      expect(await inbox(s.member)).toHaveLength(0); // ele mesmo enviou
+    });
+
+    it("ninguém tira o card de APROVAÇÃO arrastando", async () => {
+      const c = await cardInApproval();
+      await expectCode(cards.moveCard(db, s.member, c.id, "DONE", NOW), "INVALID");
+      await expectCode(cards.moveCard(db, s.admin, c.id, "CHANGES", NOW), "INVALID");
+    });
+
+    it("só quem criou ou um Administrador aprova", async () => {
+      const c = await cardInApproval();
+      await expectCode(approval.approveCard(db, s.member2, c.id, NOW), "FORBIDDEN");
+      await expectCode(approval.approveCard(db, s.observer, c.id, NOW), "FORBIDDEN");
+      await approval.approveCard(db, s.admin, c.id, NOW);
+      expect(await db.card.findUniqueOrThrow({ where: { id: c.id } })).toMatchObject({ stage: "DONE", completedOnTime: true });
+      await expectCode(approval.approveCard(db, s.admin, c.id, NOW), "INVALID"); // já não está em aprovação
+    });
+
+    it("aprovar avisa responsáveis e quem enviou", async () => {
+      const c = await cardInApproval(s.admin); // Admin enviou; responsável é o Membro2
+      await approval.approveCard(db, s.member, c.id, NOW);
+      expect((await inbox(s.member2)).map((n) => n.type)).toEqual(["CARD_APPROVED"]);
+      expect((await inbox(s.admin)).map((n) => n.type)).toEqual(["CARD_APPROVED"]);
+    });
+
+    it("reprovar exige motivo, vai para ALTERAÇÃO e mostra o motivo", async () => {
+      const c = await cardInApproval();
+      await expectCode(approval.rejectCard(db, s.member, c.id, "  ", NOW), "INVALID");
+      await approval.rejectCard(db, s.member, c.id, "Trocar a foto da capa", NOW);
+      expect((await db.card.findUniqueOrThrow({ where: { id: c.id } })).stage).toBe("CHANGES");
+      const n = await inbox(s.member2);
+      expect(n[0]).toMatchObject({ type: "CARD_REJECTED", message: "Trocar a foto da capa", actorName: "Membro" });
+      const detail = await cards.getCardDetail(db, s.member2, c.id);
+      expect(detail.lastRejection).toMatchObject({ reason: "Trocar a foto da capa", actorName: "Membro" });
+      // Corrigido e reenviado: volta para aprovação a partir de ALTERAÇÃO
+      await approval.requestApproval(db, s.member2, c.id, NOW);
+      expect((await db.card.findUniqueOrThrow({ where: { id: c.id } })).stage).toBe("APPROVAL");
+    });
+
+    it("marcar avisos como lidos só afeta os próprios", async () => {
+      await cardInApproval();
+      await notifications.markNotificationsRead(db, s.member2);
+      expect((await notifications.listNotifications(db, s.member)).unread).toBe(1);
+      await notifications.markNotificationsRead(db, s.member);
+      expect((await notifications.listNotifications(db, s.member)).unread).toBe(0);
+    });
+
+    it("Observador não envia para aprovação; card finalizado não vai para aprovação", async () => {
+      const c = await cards.createCard(db, s.member, s.board.id, base(), NOW);
+      await expectCode(approval.requestApproval(db, s.observer, c.id, NOW), "FORBIDDEN");
+      await cards.moveCard(db, s.member, c.id, "DONE", NOW);
+      await expectCode(approval.requestApproval(db, s.member, c.id, NOW), "INVALID");
     });
   });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  completionFieldsForStageChange, eventTypeForStageChange, resolveDrop, stageAfterDueDateChange, stageForNewCard,
+  approvalDrop, canRequestApprovalFrom, completionFieldsForStageChange, planDrop, eventTypeForStageChange, resolveDrop, stageAfterDueDateChange, stageForNewCard,
 } from "./moves";
 
 const friday = "2026-10-30";
@@ -89,5 +89,48 @@ describe("Conclusão e reabertura", () => {
     expect(eventTypeForStageChange("APPROVAL", "DONE")).toBe("COMPLETED");
     expect(eventTypeForStageChange("DONE", "CHANGES")).toBe("REOPENED");
     expect(eventTypeForStageChange("ACTIVE", "APPROVAL")).toBe("STAGE_CHANGED");
+  });
+});
+
+describe("Aprovação ao arrastar (F1.5)", () => {
+  it("só envia para aprovação a partir de NOVAS, prazo ou ALTERAÇÃO", () => {
+    expect(canRequestApprovalFrom("NEW")).toBe(true);
+    expect(canRequestApprovalFrom("ACTIVE")).toBe(true);
+    expect(canRequestApprovalFrom("CHANGES")).toBe(true);
+    expect(canRequestApprovalFrom("APPROVAL")).toBe(false);
+    expect(canRequestApprovalFrom("DONE")).toBe(false);
+  });
+  it("aprovador: FINALIZADAS = aprovar; ALTERAÇÃO = reprovar; outras colunas bloqueadas", () => {
+    const c = { stage: "APPROVAL" as const };
+    expect(approvalDrop(c, "DONE", true)).toEqual({ kind: "approve" });
+    expect(approvalDrop(c, "CHANGES", true)).toEqual({ kind: "reject" });
+    expect(approvalDrop(c, "TODAY", true).kind).toBe("blocked");
+    expect(approvalDrop(c, "NEW", true).kind).toBe("blocked");
+  });
+  it("quem não aprova não tira o card de APROVAÇÃO", () => {
+    expect(approvalDrop({ stage: "APPROVAL" }, "DONE", false).kind).toBe("blocked");
+  });
+  it("cards fora de APROVAÇÃO seguem a regra normal", () => {
+    expect(approvalDrop({ stage: "ACTIVE" }, "DONE", false)).toEqual({ kind: "none" });
+  });
+});
+
+describe("Plano ao soltar (tela = servidor)", () => {
+  const today = "2026-10-30";
+  it("entrar em APROVAÇÃO = enviar para aprovação; de FINALIZADAS não pode", () => {
+    expect(planDrop({ stage: "ACTIVE", dueDate: today }, "APPROVAL", today, false)).toEqual({ kind: "request" });
+    expect(planDrop({ stage: "CHANGES", dueDate: null }, "APPROVAL", today, false)).toEqual({ kind: "request" });
+    expect(planDrop({ stage: "DONE", dueDate: null }, "APPROVAL", today, true).kind).toBe("blocked");
+  });
+  it("sair de APROVAÇÃO segue a regra de aprovação", () => {
+    expect(planDrop({ stage: "APPROVAL", dueDate: today }, "DONE", today, true)).toEqual({ kind: "approve" });
+    expect(planDrop({ stage: "APPROVAL", dueDate: today }, "CHANGES", today, true)).toEqual({ kind: "reject" });
+    expect(planDrop({ stage: "APPROVAL", dueDate: today }, "TODAY", today, true).kind).toBe("blocked");
+    expect(planDrop({ stage: "APPROVAL", dueDate: today }, "APPROVAL", today, true)).toEqual({ kind: "same" });
+  });
+  it("demais casos seguem as regras normais", () => {
+    expect(planDrop({ stage: "ACTIVE", dueDate: today }, "DONE", today, false)).toEqual({ kind: "move", stage: "DONE" });
+    expect(planDrop({ stage: "ACTIVE", dueDate: today }, "TODAY", today, false)).toEqual({ kind: "same" });
+    expect(planDrop({ stage: "NEW", dueDate: null }, "OVERDUE", today, false).kind).toBe("blocked");
   });
 });

@@ -1,5 +1,5 @@
 "use client";
-import { CheckSquare, AlignLeft, CalendarDays, CheckCircle2, AlertTriangle } from "lucide-react";
+import { CheckSquare, AlignLeft, CalendarDays, CheckCircle2, AlertTriangle, Hourglass } from "lucide-react";
 import type { BoardCard } from "@/server/services/cards";
 import type { DateOnly } from "@/lib/dates/day";
 import { describeDue, initials } from "@/lib/format";
@@ -15,7 +15,7 @@ const DUE_STYLE = {
 } as const;
 
 /** Conteúdo visual de um card no quadro. */
-export function CardTile({ card, today, dragging }: { card: BoardCard; today: DateOnly; dragging?: boolean }) {
+export function CardTile({ card, today, dragging, awaitingMe }: { card: BoardCard; today: DateOnly; dragging?: boolean; awaitingMe?: boolean }) {
   const done = card.stage === "DONE";
   const due = !done && card.dueDate ? describeDue(card.dueDate, today) : null;
   const checklistComplete = card.checklistTotal > 0 && card.checklistDone === card.checklistTotal;
@@ -31,6 +31,11 @@ export function CardTile({ card, today, dragging }: { card: BoardCard; today: Da
       <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
         <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: card.area.color }} aria-hidden />
         <span className="truncate font-medium">{card.area.name}</span>
+        {awaitingMe && (
+          <span className="ml-auto flex shrink-0 items-center gap-1 rounded bg-violet-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            <Hourglass className="size-3" /> Sua aprovação
+          </span>
+        )}
       </div>
 
       <div className="text-sm leading-snug font-medium break-words">{card.title}</div>

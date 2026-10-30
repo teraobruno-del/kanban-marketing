@@ -58,8 +58,18 @@ enum CardEventType {
   COVER_CHANGED
   COMMENTED
   RECURRENCE_SPAWNED // gerou o próximo card da série
+  APPROVAL_REQUESTED // enviado para aprovação (fromStage → APPROVAL)
+  APPROVED // aprovado (APPROVAL → DONE)
+  REJECTED // reprovado com motivo em data.reason (APPROVAL → CHANGES)
   DELETED // exclusão lógica (lixeira)
   RESTORED
+}
+
+/// Tipos de aviso no sistema (SPEC §6.E).
+enum NotificationType {
+  APPROVAL_REQUESTED // para o criador: card aguardando sua aprovação
+  CARD_APPROVED // para responsáveis/quem enviou: card aprovado
+  CARD_REJECTED // para responsáveis/quem enviou: card reprovado (motivo em message)
 }
 
 // ──────────────────────────── Usuários ────────────────────────────
@@ -87,6 +97,8 @@ model User {
   comments           Comment[]
   mentions           CommentMention[]
   events             CardEvent[]
+  notifications      Notification[]   @relation("NotificationRecipient")
+  notificationsSent  Notification[]   @relation("NotificationActor")
 
   @@index([role, isActive])
   @@map("users")
@@ -217,6 +229,7 @@ model Card {
   attachments      Attachment[]   @relation("CardAttachments")
   comments         Comment[]
   events           CardEvent[]
+  notifications    Notification[]
 
   /// Montagem do quadro: cards de um quadro por etapa, ordenados por prazo.
   @@index([boardId, deletedAt, stage, dueDate, createdAt])
@@ -364,4 +377,27 @@ model CardEvent {
   @@index([boardId, type, createdAt])
   @@index([actorId])
   @@map("card_events")
+}
+
+// ──────────────────────────── Avisos ────────────────────────────
+
+/// Aviso dentro do sistema (sininho). Cada usuário só vê os próprios (RLS).
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  cardId    String           @map("card_id") @db.Uuid
+  actorId   String           @map("actor_id") @db.Uuid
+  /// Texto extra (ex.: motivo da reprovação).
+  message   String?
+  readAt    DateTime?        @map("read_at") @db.Timestamptz(3)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user  User @relation("NotificationRecipient", fields: [userId], references: [id])
+  actor User @relation("NotificationActor", fields: [actorId], references: [id])
+  card  Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@index([cardId])
+  @@map("notifications")
 }

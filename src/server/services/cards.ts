@@ -1,7 +1,7 @@
 import type { Db } from "@/lib/db/client";
 import type { Prisma } from "@/generated/prisma/client";
 import {
-  canBeAssignee, canChangeDueDate, canDeleteCard, canEditCards, type Actor, type BoardAccess, type Role,
+  canApprove, canBeAssignee, canChangeDueDate, canDeleteCard, canEditCards, type Actor, type BoardAccess, type Role,
 } from "@/lib/auth/permissions";
 import { dateOnlyFromDb, dateOnlyToDb, todayInSaoPaulo, type DateOnly } from "@/lib/dates/day";
 import type { ColumnKey } from "@/lib/board/columns";
@@ -11,6 +11,7 @@ import {
 import { cardInputSchema, checklistItemTextSchema, checklistTitleSchema, type CardInput } from "@/lib/validation/schemas";
 import { forbidden, invalid, notFound } from "@/server/errors";
 import { loadBoardAccess } from "./boards";
+import { requestApproval } from "./approval";
 import { parse } from "./util";
 
 type Tx = Prisma.TransactionClient;
@@ -118,7 +119,14 @@ export async function getCardDetail(db: Db, actor: Actor, cardId: string) {
       actorName: e.actor.name,
       createdAt: e.createdAt.toISOString(),
     })),
+    lastRejection: (() => {
+      if (card.stage !== "CHANGES") return null;
+      const e = card.events.find((ev) => ev.type === "REJECTED");
+      const reason = (e?.data as { reason?: string } | null)?.reason;
+      return e && reason ? { actorName: e.actor.name, reason, createdAt: e.createdAt.toISOString() } : null;
+    })(),
     permissions: {
+      canApprove: canApprove(actor, access, card),
       canEdit: canEditCards(actor, access),
       canChangeDueDate: canChangeDueDate(actor, access, card),
       canDelete: canDeleteCard(actor),
@@ -281,6 +289,15 @@ export async function updateCard(db: Db, actor: Actor, cardId: string, raw: Card
 export async function moveCard(db: Db, actor: Actor, cardId: string, target: ColumnKey, now = new Date()) {
   const { card } = await requireEditableCard(db, actor, cardId);
   const due = card.dueDate ? dateOnlyFromDb(card.dueDate) : null;
+  // Saída de APROVAÇÃO só por Aprovar/Reprovar (SPEC §6.E).
+  if (card.stage === "APPROVAL" && target !== "APPROVAL") {
+    throw invalid("Uma tarefa em APROVAÇÃO só sai pelos botões Aprovar ou Reprovar.");
+  }
+  // Entrar em APROVAÇÃO = enviar para aprovação (avisa o criador).
+  if (target === "APPROVAL" && card.stage !== "APPROVAL") {
+    if (card.stage === "DONE") throw invalid("Tarefas finalizadas não vão para aprovação. Reabra a tarefa primeiro.");
+    return requestApproval(db, actor, cardId, now);
+  }
   const result = resolveDrop({ stage: card.stage, dueDate: due }, target, todayInSaoPaulo(now));
   if (!result.ok) {
     if (result.sameColumn) return;

@@ -59,7 +59,7 @@ Em caso de conflito, a SPEC vale — exceto nos pontos abaixo, que esclarecem ou
 - **P13.** Quadros arquivados ficam numa seção "Arquivados", visível só ao Administrador, que pode restaurá-los.
 - **P14.** Apenas tema claro por enquanto.
 - **P15.** Botão "+ Nova tarefa" no topo do quadro, só para Administrador e Membro.
-- **P16.** (a confirmar) Na mesma coluna, cards **sem prazo** ficam **depois** dos que têm prazo (entre si, por data de criação).
+- **P16.** (confirmada) Na mesma coluna, cards **sem prazo** ficam **depois** dos que têm prazo (entre si, por data de criação).
 
 ## Notas técnicas da F1
 
@@ -71,3 +71,15 @@ Em caso de conflito, a SPEC vale — exceto nos pontos abaixo, que esclarecem ou
 - `cacheComponents` do Next.js 16 foi desligado: todas as telas dependem do usuário logado.
 - Conexão com o banco: se `DATABASE_CA_CERT` (certificado do Supabase) estiver definida, a conexão é criptografada
   e verificada. Desativar a verificação de certificado não é permitido.
+
+## Decisões da F1.5 — Aprovação (aprovadas em 30/10/2026)
+
+O dono pediu um fluxo de aprovação no sistema (antes era "fora do sistema"). A SPEC foi atualizada (§6.E, §7, §10).
+
+1. **Aprovadores**: quem criou o card **ou** qualquer Administrador.
+2. **Envio**: botão "Enviar para aprovação" **ou** arrastar para APROVAÇÃO — os dois avisam o criador.
+3. **Saída de APROVAÇÃO**: só aprovadores, pelos botões Aprovar (→ FINALIZADAS) / Reprovar (→ ALTERAÇÃO).
+   Arrastar para FINALIZADAS = Aprovar; para ALTERAÇÃO = abre o motivo; outras colunas: bloqueado.
+4. **Reprovar exige motivo** (fica no histórico e em destaque no card).
+5. **Avisos dentro do sistema** (sininho com contador); sem e-mail por enquanto.
+6. **Ordem das fases**: F1.5 (aprovação) → F2 → F3 → F4 (dashboard).

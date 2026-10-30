@@ -48,6 +48,9 @@ export function describeEvent(e: Ev): string {
     case "ATTACHMENT_REMOVED": return "removeu um anexo";
     case "COVER_CHANGED": return "alterou a capa";
     case "RECURRENCE_SPAWNED": return "gerou o próximo card da recorrência";
+    case "APPROVAL_REQUESTED": return "enviou para aprovação";
+    case "APPROVED": return "aprovou a tarefa";
+    case "REJECTED": return typeof d.reason === "string" ? `reprovou: “${d.reason}”` : "reprovou a tarefa";
     default: return "alterou o card";
   }
 }

@@ -54,3 +54,12 @@ export const checklistItemTextSchema = z.object({ text: name("Item", 300) });
 export function firstError(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Dados inválidos.";
 }
+
+// ── Aprovação ──
+export const rejectReasonSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Escreva o motivo da reprovação (pelo menos 3 caracteres).")
+    .max(1000, "Motivo muito longo (máximo de 1000 caracteres)."),
+});

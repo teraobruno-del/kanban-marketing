@@ -10,7 +10,7 @@ export function testDb(): Db {
 }
 
 const TABLES = [
-  "card_events", "comment_mentions", "comments", "attachments", "checklist_items", "checklists",
+  "notifications", "card_events", "comment_mentions", "comments", "attachments", "checklist_items", "checklists",
   "card_labels", "card_assignees", "cards", "labels", "requester_areas", "board_members", "boards", "users",
 ];
 

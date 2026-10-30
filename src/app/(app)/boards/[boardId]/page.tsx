@@ -7,8 +7,11 @@ import { getBoardView } from "@/server/services/cards";
 import { AppError } from "@/server/errors";
 import { BoardView } from "@/components/board/board-view";
 
-export default async function BoardPage({ params }: { params: Promise<{ boardId: string }> }) {
+export default async function BoardPage({
+  params, searchParams,
+}: { params: Promise<{ boardId: string }>; searchParams: Promise<{ card?: string }> }) {
   const { boardId } = await params;
+  const { card } = await searchParams;
   const user = await requireUser();
   let view;
   try {
@@ -20,7 +23,9 @@ export default async function BoardPage({ params }: { params: Promise<{ boardId:
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
     <BoardView
+      key={card ?? ""}
       view={view}
+      initialCardId={card}
       initialToday={todayInSaoPaulo()}
       canEdit={canEditCards(user, view.access) && !view.board.archived}
       isAdmin={user.role === "ADMIN"}

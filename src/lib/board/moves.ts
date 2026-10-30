@@ -103,3 +103,61 @@ export function eventTypeForStageChange(from: CardStage, to: CardStage) {
   if (from === "DONE") return "REOPENED" as const;
   return "STAGE_CHANGED" as const;
 }
+
+/** Etapas a partir das quais um card pode ser enviado para aprovação (SPEC §6.E). */
+export function canRequestApprovalFrom(stage: CardStage): boolean {
+  return stage === "NEW" || stage === "ACTIVE" || stage === "CHANGES";
+}
+
+export type ApprovalDrop =
+  | { kind: "none" } // card não está em APROVAÇÃO: segue a regra normal (resolveDrop)
+  | { kind: "approve" }
+  | { kind: "reject" } // abrir o campo de motivo
+  | { kind: "blocked"; reason: string };
+
+/** O que acontece ao arrastar um card que está em APROVAÇÃO (decisão F1.5-3A). */
+export function approvalDrop(
+  card: { stage: CardStage },
+  target: ColumnKey,
+  userCanApprove: boolean,
+): ApprovalDrop {
+  if (card.stage !== "APPROVAL" || target === "APPROVAL") return { kind: "none" };
+  if (!userCanApprove) {
+    return { kind: "blocked", reason: "Só quem criou a tarefa ou um Administrador pode aprová-la ou reprová-la." };
+  }
+  if (target === "DONE") return { kind: "approve" };
+  if (target === "CHANGES") return { kind: "reject" };
+  return { kind: "blocked", reason: "Uma tarefa em APROVAÇÃO só sai aprovada (FINALIZADAS) ou reprovada (ALTERAÇÃO)." };
+}
+
+export type DropPlan =
+  | { kind: "same" } // soltou na mesma coluna: nada a fazer
+  | { kind: "move"; stage: CardStage } // movimento normal
+  | { kind: "request" } // enviar para aprovação
+  | { kind: "approve" }
+  | { kind: "reject" } // abrir o motivo da reprovação
+  | { kind: "blocked"; reason: string };
+
+/**
+ * Plano completo ao soltar um card numa coluna (tela e servidor seguem as mesmas regras):
+ * aprovação (SPEC §6.E) primeiro, depois as regras normais (resolveDrop).
+ */
+export function planDrop(
+  card: { stage: CardStage; dueDate: DateOnly | null },
+  target: ColumnKey,
+  today: DateOnly,
+  userCanApprove: boolean,
+): DropPlan {
+  const approval = approvalDrop(card, target, userCanApprove);
+  if (approval.kind !== "none") return approval;
+  if (target === "APPROVAL") {
+    if (card.stage === "APPROVAL") return { kind: "same" };
+    if (!canRequestApprovalFrom(card.stage)) {
+      return { kind: "blocked", reason: "Tarefas finalizadas não vão para aprovação. Reabra a tarefa primeiro." };
+    }
+    return { kind: "request" };
+  }
+  const r = resolveDrop(card, target, today);
+  if (!r.ok) return r.sameColumn ? { kind: "same" } : { kind: "blocked", reason: r.reason };
+  return { kind: "move", stage: r.stage };
+}

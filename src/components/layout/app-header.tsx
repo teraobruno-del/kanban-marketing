@@ -5,6 +5,8 @@ import { LayoutGrid, Users, ChevronDown, LogOut, UserRound } from "lucide-react"
 import { logoutAction } from "@/server/actions/auth";
 import { ROLE_LABELS, type Role } from "@/lib/auth/permissions";
 import { initials } from "@/lib/format";
+import { NotificationBell } from "./notification-bell";
+import type { NotificationList, PendingApprovals } from "@/server/services/notifications";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -12,9 +14,10 @@ import {
 
 interface Props {
   user: { name: string; email: string; role: Role };
+  inbox: { notifications: NotificationList; pending: PendingApprovals };
 }
 
-export function AppHeader({ user }: Props) {
+export function AppHeader({ user, inbox }: Props) {
   const pathname = usePathname();
   const links = [
     { href: "/", label: "Quadros", icon: LayoutGrid, active: pathname === "/" || pathname.startsWith("/boards") },
@@ -48,9 +51,11 @@ export function AppHeader({ user }: Props) {
           ))}
         </nav>
 
+        <div className="ml-auto" />
+        <NotificationBell initial={inbox} />
         <DropdownMenu>
           <DropdownMenuTrigger
-            className="ml-auto flex cursor-pointer items-center gap-2 rounded-full py-1 pr-2 pl-1 text-sm outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            className="flex cursor-pointer items-center gap-2 rounded-full py-1 pr-2 pl-1 text-sm outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
             aria-label="Menu do usuário"
           >
             <span className="flex size-8 items-center justify-center rounded-full bg-slate-700 text-xs font-semibold text-white">

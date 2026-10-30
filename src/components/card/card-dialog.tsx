@@ -16,6 +16,7 @@ import { COLUMN_STYLE } from "@/components/board/column-style";
 import { CardForm, type CardFormValues } from "./card-form";
 import { Checklists } from "./checklists";
 import { describeEvent } from "./history";
+import { ApprovalPanel } from "./approval-panel";
 
 interface Props {
   /** "new" = criar; id = abrir card existente; null = fechado. */
@@ -63,12 +64,13 @@ export function CardDialog(props: Props) {
 }
 
 function CardDialogBody({
-  cardId, onCreated, board, today, onDirtyChange, onClose,
+  cardId, onCreated, board, today, currentUserId, onDirtyChange, onClose,
 }: Props & { onDirtyChange: (d: boolean) => void; onClose: () => void }) {
   const [detail, setDetail] = useState<CardDetail | null>(null);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string>();
   const [showHistory, setShowHistory] = useState(false);
+  const [formDirty, setFormDirty] = useState(false);
   const confirm = useConfirm();
 
   const load = useCallback(async () => {
@@ -167,7 +169,7 @@ function CardDialogBody({
         canEdit={detail.permissions.canEdit}
         canChangeDueDate={detail.permissions.canChangeDueDate}
         submitLabel="Salvar alterações"
-        onDirtyChange={onDirtyChange}
+        onDirtyChange={(d) => { setFormDirty(d); onDirtyChange(d); }}
         onSubmit={async (values) => {
           const r = await updateCardAction(detail.id, values);
           if (!r.ok) return r.error;
@@ -187,6 +189,7 @@ function CardDialogBody({
             {detail.completedAt && (
               <p className="text-xs text-emerald-700">Concluída em {formatDateTime(detail.completedAt)}</p>
             )}
+            <ApprovalPanel card={detail} currentUserId={currentUserId} dirty={formDirty} onChanged={async () => { await load(); setVersion((v) => v + 1); }} />
           </div>
         }
         main={

@@ -69,3 +69,12 @@ export function canManage(actor: Actor): boolean {
 export function canBeAssignee(user: Actor, access: BoardAccess): boolean {
   return canEditCards(user, access);
 }
+
+/**
+ * Aprovar ou reprovar (tirar o card de APROVAÇÃO — SPEC §6.E): quem criou o card
+ * (se ainda puder editar no quadro) ou qualquer Administrador.
+ */
+export function canApprove(actor: Actor, access: BoardAccess, card: { createdById: string }): boolean {
+  if (!canEditCards(actor, access)) return false;
+  return actor.role === "ADMIN" || card.createdById === actor.id;
+}
