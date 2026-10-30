@@ -1,5 +1,5 @@
 "use client";
-import { CheckSquare, AlignLeft, CalendarDays, CheckCircle2, AlertTriangle, Hourglass } from "lucide-react";
+import { CheckSquare, AlignLeft, CalendarDays, CheckCircle2, AlertTriangle, Hourglass, Repeat } from "lucide-react";
 import type { BoardCard } from "@/server/services/cards";
 import type { DateOnly } from "@/lib/dates/day";
 import { describeDue, initials } from "@/lib/format";
@@ -65,6 +65,7 @@ export function CardTile({ card, today, dragging, awaitingMe }: { card: BoardCar
             {due.text}
           </span>
         ) : null}
+        {card.isRecurring && <Repeat className="size-3.5 text-sky-700" aria-label="Tarefa recorrente" />}
         {card.hasDescription && <AlignLeft className="size-3.5" aria-label="Tem descrição" />}
         {card.checklistTotal > 0 && (
           <span className={cn("flex items-center gap-1", checklistComplete && "font-medium text-emerald-700")} title="Checklist">

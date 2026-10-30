@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  approvalDrop, canRequestApprovalFrom, completionFieldsForStageChange, planDrop, eventTypeForStageChange, resolveDrop, stageAfterDueDateChange, stageForNewCard,
+  approvalDrop, canRequestApprovalFrom, completionFieldsForStageChange, planDrop, suggestDueDate, eventTypeForStageChange, resolveDrop, stageAfterDueDateChange, stageForNewCard,
 } from "./moves";
 
 const friday = "2026-10-30";
@@ -131,6 +131,57 @@ describe("Plano ao soltar (tela = servidor)", () => {
   it("demais casos seguem as regras normais", () => {
     expect(planDrop({ stage: "ACTIVE", dueDate: today }, "DONE", today, false)).toEqual({ kind: "move", stage: "DONE" });
     expect(planDrop({ stage: "ACTIVE", dueDate: today }, "TODAY", today, false)).toEqual({ kind: "same" });
-    expect(planDrop({ stage: "NEW", dueDate: null }, "OVERDUE", today, false).kind).toBe("blocked");
+    expect(planDrop({ stage: "NEW", dueDate: null }, "OVERDUE", today, false, true).kind).toBe("blocked");
+  });
+});
+
+describe("Data sugerida ao soltar (F2)", () => {
+  // 26/10/2026 = segunda … 01/11/2026 = domingo
+  it("HOJE = hoje; PRÓXIMOS = segunda seguinte", () => {
+    expect(suggestDueDate("TODAY", "2026-10-28")).toBe("2026-10-28");
+    expect(suggestDueDate("UPCOMING", "2026-10-26")).toBe("2026-11-02");
+    expect(suggestDueDate("UPCOMING", "2026-11-01")).toBe("2026-11-02"); // domingo → amanhã já é a semana seguinte
+  });
+  it("ESTA SEMANA = sexta; se a sexta já chegou, amanhã; domingo bloqueado", () => {
+    expect(suggestDueDate("THIS_WEEK", "2026-10-26")).toBe("2026-10-30"); // seg → sex
+    expect(suggestDueDate("THIS_WEEK", "2026-10-29")).toBe("2026-10-30"); // qui → sex
+    expect(suggestDueDate("THIS_WEEK", "2026-10-30")).toBe("2026-10-31"); // sex → sáb
+    expect(suggestDueDate("THIS_WEEK", "2026-10-31")).toBe("2026-11-01"); // sáb → dom
+    expect(suggestDueDate("THIS_WEEK", "2026-11-01")).toBeNull(); // dom
+  });
+  it("viradas de mês e de ano", () => {
+    expect(suggestDueDate("THIS_WEEK", "2025-12-29")).toBe("2026-01-02");
+    expect(suggestDueDate("UPCOMING", "2026-12-30")).toBe("2027-01-04");
+    expect(suggestDueDate("THIS_WEEK", "2028-02-28")).toBe("2028-03-03");
+  });
+  it("a sugestão cai mesmo na coluna escolhida", () => {
+    for (const today of ["2026-10-26", "2026-10-29", "2026-10-30", "2026-10-31"]) {
+      for (const t of ["TODAY", "THIS_WEEK", "UPCOMING"] as const) {
+        const d = suggestDueDate(t, today)!;
+        expect(planDrop({ stage: "ACTIVE", dueDate: d }, t, today, false)).toEqual({ kind: "same" });
+      }
+    }
+  });
+});
+
+describe("Janela de data ao soltar (F2)", () => {
+  const today = "2026-10-28"; // quarta
+  it("quem pode mudar o prazo recebe a janela com a sugestão", () => {
+    expect(planDrop({ stage: "ACTIVE", dueDate: "2026-11-20" }, "TODAY", today, false, true))
+      .toEqual({ kind: "pickDate", target: "TODAY", suggested: today });
+    expect(planDrop({ stage: "NEW", dueDate: null }, "THIS_WEEK", today, false, true))
+      .toEqual({ kind: "pickDate", target: "THIS_WEEK", suggested: "2026-10-30" });
+    expect(planDrop({ stage: "DONE", dueDate: "2026-10-01" }, "UPCOMING", today, false, true).kind).toBe("pickDate");
+  });
+  it("quem não pode mudar o prazo é bloqueado com explicação (P22)", () => {
+    const r = planDrop({ stage: "ACTIVE", dueDate: "2026-11-20" }, "TODAY", today, false, false);
+    expect(r.kind).toBe("blocked");
+    expect(r.kind === "blocked" && r.reason).toMatch(/pode mudar o prazo/);
+  });
+  it("domingo: ESTA SEMANA bloqueada mesmo para quem pode mudar o prazo", () => {
+    expect(planDrop({ stage: "NEW", dueDate: null }, "THIS_WEEK", "2026-11-01", false, true).kind).toBe("blocked");
+  });
+  it("tarefa em APROVAÇÃO continua presa à regra de aprovação", () => {
+    expect(planDrop({ stage: "APPROVAL", dueDate: null }, "TODAY", today, true, true).kind).toBe("blocked");
   });
 });

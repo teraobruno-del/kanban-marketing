@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import type { BoardView } from "@/server/services/cards";
 import type { CardInput } from "@/lib/validation/schemas";
 import { readableTextColor } from "@/lib/colors";
-import { initials } from "@/lib/format";
+import { describeRecurrence, initials, type Frequency } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,7 @@ export interface CardFormValues {
   requesterAreaId: string;
   labelIds: string[];
   assigneeIds: string[];
+  recurrence: { frequency: Frequency | null; endDate: string | null };
 }
 
 interface Props {
@@ -57,7 +58,9 @@ export function CardForm(props: Props) {
     (v.dueDate ?? null) !== (initial.dueDate ?? null) ||
     v.requesterAreaId !== initial.requesterAreaId ||
     !sameSet(v.labelIds, initial.labelIds) ||
-    !sameSet(v.assigneeIds, initial.assigneeIds);
+    !sameSet(v.assigneeIds, initial.assigneeIds) ||
+    v.recurrence.frequency !== initial.recurrence.frequency ||
+    (v.recurrence.frequency !== null && (v.recurrence.endDate ?? null) !== (initial.recurrence.endDate ?? null));
 
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
@@ -82,7 +85,11 @@ export function CardForm(props: Props) {
         e.preventDefault();
         if (!canSubmit) return;
         setSaving(true);
-        const err = await onSubmit({ ...v, dueDate: v.dueDate || null });
+        const err = await onSubmit({
+          ...v,
+          dueDate: v.dueDate || null,
+          recurrence: v.recurrence.frequency ? { frequency: v.recurrence.frequency, endDate: v.recurrence.endDate || null } : { frequency: null, endDate: null },
+        });
         setSaving(false);
         setError(err);
       }}
@@ -147,11 +154,11 @@ export function CardForm(props: Props) {
             <div className="flex items-center gap-1">
               <Input
                 id="due" type="date" value={v.dueDate ?? ""} disabled={!canChangeDueDate}
-                onChange={(e) => setV({ ...v, dueDate: e.target.value || null })}
+                onChange={(e) => setV({ ...v, dueDate: e.target.value || null, ...(e.target.value ? {} : { recurrence: { frequency: null, endDate: null } }) })}
               />
               {canChangeDueDate && v.dueDate && (
                 <Button type="button" variant="ghost" size="icon" aria-label="Remover prazo" title="Remover prazo"
-                  onClick={() => setV({ ...v, dueDate: null })}>
+                  onClick={() => setV({ ...v, dueDate: null, recurrence: { frequency: null, endDate: null } })}>
                   <X />
                 </Button>
               )}
@@ -162,6 +169,33 @@ export function CardForm(props: Props) {
             {canChangeDueDate && !v.dueDate && (
               <p className="text-xs text-muted-foreground">Sem prazo, a tarefa fica em NOVAS DEMANDAS.</p>
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="repeat" className="text-xs text-muted-foreground">Repetir</Label>
+            <NativeSelect
+              id="repeat" value={v.recurrence.frequency ?? ""} disabled={!canChangeDueDate || !v.dueDate}
+              onChange={(e) => setV({ ...v, recurrence: { ...v.recurrence, frequency: (e.target.value || null) as Frequency | null } })}
+            >
+              <option value="">Não repete</option>
+              <option value="DAILY">Todo dia</option>
+              <option value="WEEKLY">Toda semana</option>
+              <option value="MONTHLY">Todo mês</option>
+            </NativeSelect>
+            {v.recurrence.frequency && (
+              <>
+                <Label htmlFor="repeat-end" className="text-xs text-muted-foreground">Até (opcional)</Label>
+                <Input
+                  id="repeat-end" type="date" min={v.dueDate ?? undefined} value={v.recurrence.endDate ?? ""} disabled={!canChangeDueDate}
+                  onChange={(e) => setV({ ...v, recurrence: { ...v.recurrence, endDate: e.target.value || null } })}
+                />
+                <p className="text-xs text-sky-800">
+                  🔁 {describeRecurrence(v.recurrence.frequency, v.dueDate, v.recurrence.endDate || null)}.
+                  Ao finalizar, a próxima tarefa é criada sozinha.
+                </p>
+              </>
+            )}
+            {canChangeDueDate && !v.dueDate && <p className="text-xs text-muted-foreground">Defina um prazo para poder repetir.</p>}
           </div>
 
           <div className="space-y-1.5">

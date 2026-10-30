@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeDue, formatDateOnly, formatDateOnlyShort, formatDateTime, initials } from "./format";
+import { describeDue, describeRecurrence, formatDateOnly, formatDateOnlyShort, formatDateTime, initials } from "./format";
 
 describe("Formatação para a tela", () => {
   it("datas no padrão brasileiro", () => {
@@ -31,5 +31,13 @@ describe("Prazo em linguagem natural", () => {
   });
   it("atraso conta dias de calendário, inclusive na virada do ano", () => {
     expect(describeDue("2025-12-31", "2026-01-02").text).toBe("Atrasado há 2 dias");
+  });
+});
+
+describe("Resumo da repetição", () => {
+  it("diária, semanal e mensal", () => {
+    expect(describeRecurrence("DAILY", "2026-10-30", null)).toBe("Repete todo dia, sem data para terminar");
+    expect(describeRecurrence("WEEKLY", "2026-10-30", "2026-12-31")).toBe("Repete toda semana (sexta), até 31/12/2026");
+    expect(describeRecurrence("MONTHLY", "2026-10-31", null)).toBe("Repete todo mês (dia 31), sem data para terminar");
   });
 });

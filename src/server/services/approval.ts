@@ -7,6 +7,8 @@ import { rejectReasonSchema } from "@/lib/validation/schemas";
 import { forbidden, invalid, notFound } from "@/server/errors";
 import { loadBoardAccess } from "./boards";
 import { parse } from "./util";
+import { createNotifications as notify } from "./notifications";
+import { finishCard } from "./completion";
 
 type Tx = Prisma.TransactionClient;
 
@@ -18,19 +20,6 @@ async function loadCard(db: Db, actor: Actor, cardId: string) {
   if (!card || card.deletedAt) throw notFound("Tarefa não encontrada.");
   const { access } = await loadBoardAccess(db, actor, card.boardId);
   return { card, access };
-}
-
-/** Cria avisos, sem avisar ninguém da própria ação e sem repetir pessoas. */
-async function notify(
-  tx: Tx,
-  recipients: Iterable<string>,
-  data: { type: Prisma.NotificationCreateManyInput["type"]; cardId: string; actorId: string; message?: string | null },
-) {
-  const ids = [...new Set(recipients)].filter((id) => id !== data.actorId);
-  if (ids.length === 0) return;
-  // Só usuários ativos recebem avisos.
-  const active = await tx.user.findMany({ where: { id: { in: ids }, isActive: true }, select: { id: true } });
-  await tx.notification.createMany({ data: active.map((u) => ({ ...data, userId: u.id })) });
 }
 
 /**
@@ -71,22 +60,30 @@ async function requireApprover(db: Db, actor: Actor, cardId: string) {
   return card;
 }
 
-/** Aprovar: APROVAÇÃO → FINALIZADAS (regra de conclusão) e avisa responsáveis + quem enviou. */
-export async function approveCard(db: Db, actor: Actor, cardId: string, now = new Date()) {
+/**
+ * Aprovar: APROVAÇÃO → FINALIZADAS (regra de conclusão: checklist + recorrência) e avisa responsáveis + quem enviou.
+ * `completeChecklist` confirma que itens pendentes serão marcados como concluídos (P23).
+ */
+export async function approveCard(
+  db: Db, actor: Actor, cardId: string, now = new Date(), opts: { completeChecklist?: boolean } = {},
+) {
   const card = await requireApprover(db, actor, cardId);
   const due = card.dueDate ? dateOnlyFromDb(card.dueDate) : null;
-  await db.$transaction(async (tx) => {
-    await tx.card.update({
-      where: { id: cardId },
-      data: { stage: "DONE", ...completionFieldsForStageChange("APPROVAL", "DONE", due, now) },
-    });
-    await tx.cardEvent.create({
-      data: { cardId, boardId: card.boardId, actorId: actor.id, type: "APPROVED", fromStage: "APPROVAL", toStage: "DONE", createdAt: now },
+  return db.$transaction(async (tx) => {
+    const spawned = await finishCard(tx, card, actor, now, opts.completeChecklist ?? false, async () => {
+      await tx.card.update({
+        where: { id: cardId },
+        data: { stage: "DONE", ...completionFieldsForStageChange("APPROVAL", "DONE", due, now) },
+      });
+      await tx.cardEvent.create({
+        data: { cardId, boardId: card.boardId, actorId: actor.id, type: "APPROVED", fromStage: "APPROVAL", toStage: "DONE", createdAt: now },
+      });
     });
     const requester = await lastRequester(tx, cardId);
     await notify(tx, [...card.assignees.map((a) => a.userId), ...(requester ? [requester] : [])], {
       type: "CARD_APPROVED", cardId, actorId: actor.id,
     });
+    return { nextRecurrence: spawned?.dueDate ?? null };
   });
 }
 

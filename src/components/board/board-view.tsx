@@ -12,9 +12,13 @@ import { planDrop, type DropPlan } from "@/lib/board/moves";
 import { groupCardsByColumn } from "@/lib/board/sort";
 import type { DateOnly } from "@/lib/dates/day";
 import { useToday } from "@/hooks/use-today";
-import { moveCardAction } from "@/server/actions/cards";
+import { moveCardAction, moveWithDueDateAction } from "@/server/actions/cards";
 import { approveCardAction, rejectCardAction } from "@/server/actions/approval";
 import { RejectDialog } from "@/components/card/reject-dialog";
+import { askChecklistConfirmation, finishedToast } from "@/components/card/finish";
+import { useConfirm } from "@/components/ui/confirm";
+import { DueDateDialog, type DueDateRequest } from "./due-date-dialog";
+import { columnLabel } from "@/lib/board/moves";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +48,8 @@ export function BoardView({ view, initialCardId, initialToday, canEdit, isAdmin,
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openCard, setOpenCard] = useState<string | "new" | null>(initialCardId ?? null);
   const [rejecting, setRejecting] = useState<BoardCard | null>(null);
+  const [dateRequest, setDateRequest] = useState<DueDateRequest | null>(null);
+  const confirm = useConfirm();
   const router = useRouter();
   const pathname = usePathname();
   const [, startTransition] = useTransition();
@@ -54,7 +60,10 @@ export function BoardView({ view, initialCardId, initialToday, canEdit, isAdmin,
   const noActiveAreas = view.areas.every((a) => !a.isActive);
   // Pode aprovar/reprovar este card? (quem criou ou Administrador — SPEC §6.E)
   const canApproveCard = (c: BoardCard) => canEdit && (isAdmin || c.createdById === currentUserId);
-  const planFor = (c: BoardCard, target: ColumnKey): DropPlan => planDrop(c, target, today, canApproveCard(c));
+  // Pode mudar o prazo? (Administrador ou quem criou — SPEC §7); mesma regra da janela de data.
+  const canChangeDueCard = canApproveCard;
+  const planFor = (c: BoardCard, target: ColumnKey): DropPlan => planDrop(c, target, today, canApproveCard(c), canChangeDueCard(c));
+  const pendingOf = (c: BoardCard) => c.checklistTotal - c.checklistDone;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -82,22 +91,38 @@ export function BoardView({ view, initialCardId, initialToday, canEdit, isAdmin,
       case "reject":
         setRejecting(card);
         return;
-      case "approve":
-        startTransition(async () => {
-          applyMove({ id: card.id, stage: "DONE" });
-          const r = await approveCardAction(card.id);
-          if (!r.ok) toast.error(r.error);
-          else toast.success("Tarefa aprovada e finalizada.");
+      case "pickDate":
+        setDateRequest({
+          cardId: card.id, title: card.title, currentDue: card.dueDate,
+          targetLabel: columnLabel(plan.target), suggested: plan.suggested,
         });
+        return;
+      case "approve":
+        void (async () => {
+          const opts = await askChecklistConfirmation(confirm, pendingOf(card));
+          if (!opts) return;
+          startTransition(async () => {
+            applyMove({ id: card.id, stage: "DONE" });
+            const r = await approveCardAction(card.id, opts);
+            if (!r.ok) toast.error(r.error);
+            else finishedToast("Tarefa aprovada e finalizada.", r.data?.nextRecurrence);
+          });
+        })();
         return;
       case "request":
       case "move":
-        startTransition(async () => {
-          applyMove({ id: card.id, stage: plan.kind === "request" ? "APPROVAL" : plan.stage });
-          const r = await moveCardAction(card.id, target);
-          if (!r.ok) toast.error(r.error);
-          else if (plan.kind === "request") toast.success("Enviada para aprovação. Quem criou a tarefa foi avisado(a).");
-        });
+        void (async () => {
+          const toDone = plan.kind === "move" && plan.stage === "DONE";
+          const opts = toDone ? await askChecklistConfirmation(confirm, pendingOf(card)) : {};
+          if (!opts) return;
+          startTransition(async () => {
+            applyMove({ id: card.id, stage: plan.kind === "request" ? "APPROVAL" : plan.stage });
+            const r = await moveCardAction(card.id, target, opts);
+            if (!r.ok) toast.error(r.error);
+            else if (plan.kind === "request") toast.success("Enviada para aprovação. Quem criou a tarefa foi avisado(a).");
+            else if (toDone) finishedToast("Tarefa finalizada.", r.data?.nextRecurrence);
+          });
+        })();
     }
   }
 
@@ -198,6 +223,18 @@ export function BoardView({ view, initialCardId, initialToday, canEdit, isAdmin,
         </div>
         <DragOverlay>{activeCard && <CardTile card={activeCard} today={today} dragging />}</DragOverlay>
       </DndContext>
+
+      <DueDateDialog
+        request={dateRequest}
+        today={today}
+        onCancel={() => setDateRequest(null)}
+        onConfirm={async (date) => {
+          const r = await moveWithDueDateAction(dateRequest!.cardId, date);
+          if (!r.ok) return r.error;
+          setDateRequest(null);
+          toast.success("Prazo atualizado.");
+        }}
+      />
 
       <RejectDialog
         open={rejecting !== null}

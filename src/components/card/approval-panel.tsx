@@ -8,6 +8,8 @@ import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { RejectDialog } from "./reject-dialog";
+import { askChecklistConfirmation, finishedToast } from "./finish";
+import { useConfirm } from "@/components/ui/confirm";
 
 /** Botões e avisos de aprovação dentro da tarefa (SPEC §6.E). */
 export function ApprovalPanel({ card, currentUserId, dirty, onChanged }: {
@@ -16,6 +18,20 @@ export function ApprovalPanel({ card, currentUserId, dirty, onChanged }: {
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const { canEdit, canApprove } = card.permissions;
+  const confirm = useConfirm();
+  const pending = card.checklists.reduce((n, cl) => n + cl.items.filter((i) => !i.isDone).length, 0);
+
+  async function approve() {
+    if (dirty) return toast.warning("Salve ou descarte as alterações da tarefa antes.");
+    const opts = await askChecklistConfirmation(confirm, pending);
+    if (!opts) return;
+    setBusy(true);
+    const r = await approveCardAction(card.id, opts);
+    if (!r.ok) toast.error(r.error);
+    else finishedToast("Tarefa aprovada e finalizada.", r.data?.nextRecurrence);
+    await onChanged();
+    setBusy(false);
+  }
 
   async function run(p: () => Promise<{ ok: boolean; error?: string }>, success: string) {
     if (dirty) return toast.warning("Salve ou descarte as alterações da tarefa antes.");
@@ -57,7 +73,7 @@ export function ApprovalPanel({ card, currentUserId, dirty, onChanged }: {
         (canApprove ? (
           <div className="grid grid-cols-2 gap-2">
             <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={busy}
-              onClick={() => run(() => approveCardAction(card.id), "Tarefa aprovada e finalizada.")}>
+              onClick={approve}>
               <Check /> Aprovar
             </Button>
             <Button type="button" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800" disabled={busy}

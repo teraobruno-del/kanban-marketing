@@ -1,5 +1,18 @@
 import type { Db } from "@/lib/db/client";
 import type { Actor } from "@/lib/auth/permissions";
+import type { Prisma } from "@/generated/prisma/client";
+
+/** Cria avisos, sem avisar ninguém da própria ação, sem repetir pessoas e só para usuários ativos. */
+export async function createNotifications(
+  tx: Prisma.TransactionClient,
+  recipients: Iterable<string>,
+  data: { type: Prisma.NotificationCreateManyInput["type"]; cardId: string; actorId: string; message?: string | null },
+) {
+  const ids = [...new Set(recipients)].filter((id) => id !== data.actorId);
+  if (ids.length === 0) return;
+  const active = await tx.user.findMany({ where: { id: { in: ids }, isActive: true }, select: { id: true } });
+  if (active.length) await tx.notification.createMany({ data: active.map((u) => ({ ...data, userId: u.id })) });
+}
 
 /** Avisos recentes do usuário (sininho). */
 export async function listNotifications(db: Db, actor: Actor, take = 20) {

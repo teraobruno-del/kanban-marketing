@@ -8,7 +8,7 @@ const STAGE: Record<string, string> = {
   CHANGES: "ALTERAÇÃO",
   DONE: "FINALIZADAS",
 };
-const FIELD: Record<string, string> = { title: "o título", description: "a descrição", requesterArea: "a área solicitante" };
+const FIELD: Record<string, string> = { title: "o título", description: "a descrição", requesterArea: "a área solicitante", recurrence: "a repetição" };
 
 type Ev = CardDetail["events"][number];
 
@@ -17,7 +17,7 @@ export function describeEvent(e: Ev): string {
   const d = (e.data ?? {}) as Record<string, unknown>;
   const date = (v: unknown) => (typeof v === "string" ? formatDateOnly(v) : "sem prazo");
   switch (e.type) {
-    case "CREATED": return "criou o card";
+    case "CREATED": return d.recurrenceOf ? "finalizou a tarefa anterior e esta foi criada pela repetição da série" : "criou o card";
     case "STAGE_CHANGED":
       return d.reason === "dueDate"
         ? `card foi para ${STAGE[e.toStage ?? ""]} por causa do prazo`
@@ -39,6 +39,7 @@ export function describeEvent(e: Ev): string {
         case "item_checked": return `concluiu o item “${d.text}”`;
         case "item_unchecked": return `desmarcou o item “${d.text}”`;
         case "item_removed": return `removeu o item “${d.text}”`;
+        case "all_completed": return `marcou ${d.count} ${d.count === 1 ? "item pendente" : "itens pendentes"} da checklist como concluídos`;
         default: return "alterou a checklist";
       }
     case "DELETED": return "excluiu o card";
@@ -47,7 +48,7 @@ export function describeEvent(e: Ev): string {
     case "ATTACHMENT_ADDED": return "anexou um arquivo";
     case "ATTACHMENT_REMOVED": return "removeu um anexo";
     case "COVER_CHANGED": return "alterou a capa";
-    case "RECURRENCE_SPAWNED": return "gerou o próximo card da recorrência";
+    case "RECURRENCE_SPAWNED": return `criou a próxima tarefa da série (vence ${date(d.dueDate)})`;
     case "APPROVAL_REQUESTED": return "enviou para aprovação";
     case "APPROVED": return "aprovou a tarefa";
     case "REJECTED": return typeof d.reason === "string" ? `reprovou: “${d.reason}”` : "reprovou a tarefa";

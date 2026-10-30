@@ -18,10 +18,11 @@ export async function requestApprovalAction(cardId: string) {
   });
 }
 
-export async function approveCardAction(cardId: string) {
+export async function approveCardAction(cardId: string, opts: { completeChecklist?: boolean } = {}) {
   return run(async (u) => {
-    await svc.approveCard(prisma, u, cardId);
+    const r = await svc.approveCard(prisma, u, cardId, new Date(), opts);
     await refresh(cardId);
+    return r;
   });
 }
 

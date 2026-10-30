@@ -3,15 +3,16 @@ import type { Prisma } from "@/generated/prisma/client";
 import {
   canApprove, canBeAssignee, canChangeDueDate, canDeleteCard, canEditCards, type Actor, type BoardAccess, type Role,
 } from "@/lib/auth/permissions";
-import { dateOnlyFromDb, dateOnlyToDb, todayInSaoPaulo, type DateOnly } from "@/lib/dates/day";
+import { dateOnlyFromDb, dateOnlyToDb, parseDateOnly, todayInSaoPaulo, type DateOnly } from "@/lib/dates/day";
 import type { ColumnKey } from "@/lib/board/columns";
 import {
   completionFieldsForStageChange, eventTypeForStageChange, resolveDrop, stageAfterDueDateChange, stageForNewCard,
 } from "@/lib/board/moves";
-import { cardInputSchema, checklistItemTextSchema, checklistTitleSchema, type CardInput } from "@/lib/validation/schemas";
+import { cardInputSchema, checklistItemTextSchema, checklistTitleSchema, dueDateSchema, type CardInput } from "@/lib/validation/schemas";
 import { forbidden, invalid, notFound } from "@/server/errors";
 import { loadBoardAccess } from "./boards";
 import { requestApproval } from "./approval";
+import { finishCard } from "./completion";
 import { parse } from "./util";
 
 type Tx = Prisma.TransactionClient;
@@ -52,6 +53,7 @@ export async function getBoardView(db: Db, actor: Actor, boardId: string) {
         checklistTotal: items.length,
         checklistDone: items.filter((i) => i.isDone).length,
         hasDescription: c.description.trim().length > 0,
+        isRecurring: c.isRecurring,
       };
     }),
     areas: areas.map(({ id, name, color, isActive }) => ({ id, name, color, isActive })),
@@ -79,6 +81,7 @@ export async function getCardDetail(db: Db, actor: Actor, cardId: string) {
     include: {
       ...cardListInclude,
       createdBy: { select: { id: true, name: true } },
+      recurrenceChild: { select: { id: true } },
       checklists: {
         orderBy: [{ position: "asc" }, { createdAt: "asc" }],
         include: { items: { orderBy: [{ position: "asc" }, { createdAt: "asc" }] } },
@@ -119,6 +122,13 @@ export async function getCardDetail(db: Db, actor: Actor, cardId: string) {
       actorName: e.actor.name,
       createdAt: e.createdAt.toISOString(),
     })),
+    recurrence: card.isRecurring && card.recurrenceFrequency
+      ? {
+          frequency: card.recurrenceFrequency,
+          endDate: card.recurrenceEndDate ? dateOnlyFromDb(card.recurrenceEndDate) : null,
+          nextCreated: card.recurrenceChild !== null,
+        }
+      : null,
     lastRejection: (() => {
       if (card.stage !== "CHANGES") return null;
       const e = card.events.find((ev) => ev.type === "REJECTED");
@@ -199,6 +209,19 @@ async function requireEditableCard(db: Db | Tx, actor: Actor, cardId: string) {
 
 // ───────────────────────── Criar / editar ─────────────────────────
 
+/** Campos de recorrência gravados no card (SPEC §6.C). Mensal guarda o dia do prazo como "dia original". */
+function recurrenceData(r: { frequency: "DAILY" | "WEEKLY" | "MONTHLY" | null; endDate: DateOnly | null }, dueDate: DateOnly | null) {
+  if (!r.frequency || !dueDate) {
+    return { isRecurring: false, recurrenceFrequency: null, recurrenceEndDate: null, recurrenceAnchorDay: null };
+  }
+  return {
+    isRecurring: true,
+    recurrenceFrequency: r.frequency,
+    recurrenceEndDate: r.endDate ? dateOnlyToDb(r.endDate) : null,
+    recurrenceAnchorDay: parseDateOnly(dueDate).day,
+  };
+}
+
 export async function createCard(db: Db, actor: Actor, boardId: string, raw: CardInput, now = new Date()) {
   const { board, access } = await loadBoardAccess(db, actor, boardId);
   if (!canEditCards(actor, access)) throw forbidden();
@@ -218,6 +241,7 @@ export async function createCard(db: Db, actor: Actor, boardId: string, raw: Car
         requesterAreaId: input.requesterAreaId,
         createdById: actor.id,
         createdAt: now,
+        ...recurrenceData(input.recurrence, input.dueDate),
         labels: { create: labelIds.map((labelId) => ({ labelId })) },
         assignees: { create: assigneeIds.map((userId) => ({ userId })) },
       },
@@ -234,6 +258,16 @@ export async function updateCard(db: Db, actor: Actor, cardId: string, raw: Card
   const dueChanged = input.dueDate !== oldDue;
   if (dueChanged && !canChangeDueDate(actor, access, card)) {
     throw forbidden("Só o Administrador ou quem criou o card pode alterar o prazo.");
+  }
+  const oldRecurrence = {
+    frequency: card.isRecurring ? card.recurrenceFrequency : null,
+    endDate: card.isRecurring && card.recurrenceEndDate ? dateOnlyFromDb(card.recurrenceEndDate) : null,
+  };
+  const recurrenceChanged =
+    input.recurrence.frequency !== oldRecurrence.frequency ||
+    (input.recurrence.frequency !== null && input.recurrence.endDate !== oldRecurrence.endDate);
+  if (recurrenceChanged && !canChangeDueDate(actor, access, card)) {
+    throw forbidden("Só o Administrador ou quem criou a tarefa pode mudar a repetição.");
   }
 
   return db.$transaction(async (tx) => {
@@ -253,6 +287,8 @@ export async function updateCard(db: Db, actor: Actor, cardId: string, raw: Card
         requesterAreaId: input.requesterAreaId,
         dueDate: input.dueDate ? dateOnlyToDb(input.dueDate) : null,
         stage: newStage,
+        // Recorrência: recalculada se mudou a repetição ou o prazo (o "dia original" segue o novo prazo).
+        ...(recurrenceChanged || dueChanged ? recurrenceData(input.recurrence, input.dueDate) : {}),
       },
     });
 
@@ -260,6 +296,7 @@ export async function updateCard(db: Db, actor: Actor, cardId: string, raw: Card
     if (input.title !== card.title) changed.push("title");
     if (input.description !== card.description) changed.push("description");
     if (input.requesterAreaId !== card.requesterAreaId) changed.push("requesterArea");
+    if (recurrenceChanged) changed.push("recurrence");
     if (changed.length) await addEvent(tx, card, actor, "UPDATED", { data: { fields: changed } }, now);
 
     if (dueChanged) await addEvent(tx, card, actor, "DUE_DATE_CHANGED", { data: { from: oldDue, to: input.dueDate } }, now);
@@ -286,7 +323,9 @@ export async function updateCard(db: Db, actor: Actor, cardId: string, raw: Card
 
 // ───────────────────────── Mover ─────────────────────────
 
-export async function moveCard(db: Db, actor: Actor, cardId: string, target: ColumnKey, now = new Date()) {
+export async function moveCard(
+  db: Db, actor: Actor, cardId: string, target: ColumnKey, now = new Date(), opts: { completeChecklist?: boolean } = {},
+) {
   const { card } = await requireEditableCard(db, actor, cardId);
   const due = card.dueDate ? dateOnlyFromDb(card.dueDate) : null;
   // Saída de APROVAÇÃO só por Aprovar/Reprovar (SPEC §6.E).
@@ -296,22 +335,66 @@ export async function moveCard(db: Db, actor: Actor, cardId: string, target: Col
   // Entrar em APROVAÇÃO = enviar para aprovação (avisa o criador).
   if (target === "APPROVAL" && card.stage !== "APPROVAL") {
     if (card.stage === "DONE") throw invalid("Tarefas finalizadas não vão para aprovação. Reabra a tarefa primeiro.");
-    return requestApproval(db, actor, cardId, now);
+    await requestApproval(db, actor, cardId, now);
+    return { nextRecurrence: null };
   }
   const result = resolveDrop({ stage: card.stage, dueDate: due }, target, todayInSaoPaulo(now));
   if (!result.ok) {
-    if (result.sameColumn) return;
+    if (result.sameColumn) return { nextRecurrence: null };
     throw invalid(result.reason);
   }
-  if (result.stage === card.stage) return; // ex.: ATRASADAS → HOJE não existe; nada a fazer
+  if (result.stage === card.stage) return { nextRecurrence: null };
 
   const completion = completionFieldsForStageChange(card.stage, result.stage, due, now);
-  await db.$transaction(async (tx) => {
+  const write = async (tx: Tx) => {
     await tx.card.update({ where: { id: cardId }, data: { stage: result.stage, ...(completion ?? {}) } });
     await addEvent(
       tx, card, actor, eventTypeForStageChange(card.stage, result.stage),
       { fromStage: card.stage, toStage: result.stage }, now,
     );
+  };
+  return db.$transaction(async (tx) => {
+    if (result.stage === "DONE") {
+      // Conclusão: checklist pendente (com confirmação) + próxima tarefa da série (SPEC §6.B/§6.C).
+      const spawned = await finishCard(tx, card, actor, now, opts.completeChecklist ?? false, () => write(tx));
+      return { nextRecurrence: spawned?.dueDate ?? null };
+    }
+    await write(tx);
+    return { nextRecurrence: null };
+  });
+}
+
+/**
+ * Janela de "ajustar data" ao arrastar para uma coluna de prazo (SPEC §6.A, decisão F2-1A):
+ * define o novo prazo (a partir de hoje) e coloca a tarefa em ACTIVE. Sair de FINALIZADAS = reabrir.
+ */
+export async function moveWithDueDate(db: Db, actor: Actor, cardId: string, rawDate: string, now = new Date()) {
+  const { card, access } = await requireEditableCard(db, actor, cardId);
+  if (!canChangeDueDate(actor, access, card)) {
+    throw forbidden("Só o Administrador ou quem criou a tarefa pode mudar o prazo.");
+  }
+  if (card.stage === "APPROVAL") throw invalid("Uma tarefa em APROVAÇÃO só sai pelos botões Aprovar ou Reprovar.");
+  const dueDate = parse(dueDateSchema, rawDate);
+  if (!dueDate) throw invalid("Escolha uma data.");
+  const today = todayInSaoPaulo(now);
+  if (dueDate < today) throw invalid("Escolha uma data a partir de hoje.");
+
+  const oldDue = card.dueDate ? dateOnlyFromDb(card.dueDate) : null;
+  const completion = completionFieldsForStageChange(card.stage, "ACTIVE", dueDate, now);
+  await db.$transaction(async (tx) => {
+    await tx.card.update({
+      where: { id: cardId },
+      data: {
+        dueDate: dateOnlyToDb(dueDate),
+        stage: "ACTIVE",
+        ...(completion ?? {}),
+        ...(card.isRecurring && card.recurrenceFrequency === "MONTHLY" ? { recurrenceAnchorDay: parseDateOnly(dueDate).day } : {}),
+      },
+    });
+    if (oldDue !== dueDate) await addEvent(tx, card, actor, "DUE_DATE_CHANGED", { data: { from: oldDue, to: dueDate } }, now);
+    if (card.stage !== "ACTIVE") {
+      await addEvent(tx, card, actor, eventTypeForStageChange(card.stage, "ACTIVE"), { fromStage: card.stage, toStage: "ACTIVE" }, now);
+    }
   });
 }
 

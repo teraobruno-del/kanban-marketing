@@ -33,9 +33,19 @@ export async function updateCardAction(cardId: string, input: CardInput) {
   });
 }
 
-export async function moveCardAction(cardId: string, target: ColumnKey) {
+export async function moveCardAction(cardId: string, target: ColumnKey, opts: { completeChecklist?: boolean } = {}) {
   return run(async (u) => {
-    await svc.moveCard(prisma, u, cardId, target);
+    const r = await svc.moveCard(prisma, u, cardId, target, new Date(), opts);
+    const b = await boardOf(cardId);
+    if (b) refresh(b);
+    return r;
+  });
+}
+
+/** Janela de "ajustar data" ao arrastar para uma coluna de prazo. */
+export async function moveWithDueDateAction(cardId: string, dueDate: string) {
+  return run(async (u) => {
+    await svc.moveWithDueDate(prisma, u, cardId, dueDate);
     const b = await boardOf(cardId);
     if (b) refresh(b);
   });

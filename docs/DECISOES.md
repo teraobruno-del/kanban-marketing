@@ -83,3 +83,24 @@ O dono pediu um fluxo de aprovação no sistema (antes era "fora do sistema"). A
 4. **Reprovar exige motivo** (fica no histórico e em destaque no card).
 5. **Avisos dentro do sistema** (sininho com contador); sem e-mail por enquanto.
 6. **Ordem das fases**: F1.5 (aprovação) → F2 → F3 → F4 (dashboard).
+
+## Decisões da F2 — Automações (aprovadas em 30/10/2026)
+
+Comentários continuam na F3 (ordem normal das fases).
+
+1. **Janela de data ao arrastar**: vem com a data sugerida (HOJE = hoje; ESTA SEMANA = sexta, ou amanhã se a sexta
+   já chegou — bloqueado no domingo; PRÓXIMOS = segunda seguinte), mas aceita qualquer data **a partir de hoje**;
+   a janela mostra para qual coluna a tarefa vai.
+2. **Recorrência**: ligar/desligar/alterar = mesma permissão de mudar o prazo (Administrador ou quem criou).
+3. **Nova tarefa da série avisa os responsáveis** no sininho.
+
+- **P22.** Sem permissão de prazo: sem janela; só entra na coluna de prazo se a data já combinar.
+- **P23.** Confirmação de checklist vale para todo caminho até FINALIZADAS (arrastar ou Aprovar); cancelar não move.
+- **P24.** Recorrência exige prazo.
+- **P25.** A nova tarefa copia título, descrição, área, etiquetas ativas, responsáveis (que ainda podem ser),
+  criador, checklists (itens desmarcados) e a configuração de recorrência.
+- **P26.** Só a primeira finalização gera a próxima (idempotente).
+- **P27.** Desligar a recorrência vale dali em diante.
+- **P28.** Ícone 🔁 no quadro e resumo "Repete todo mês, até …" na tarefa.
+- **P29.** Tarefa na lixeira nunca gera a próxima.
+- Mudar o prazo de uma tarefa mensal recorrente redefine o "dia original" da série para o dia do novo prazo.

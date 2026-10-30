@@ -33,3 +33,18 @@ describe("Validação de área/label", () => {
     expect(boardItemSchema.safeParse({ name: "RH", color: "vermelho" }).success).toBe(false);
   });
 });
+
+describe("Validação de recorrência", () => {
+  const ok = { title: "Relatório", requesterAreaId: area };
+  it("sem repetição por padrão", () => {
+    expect(cardInputSchema.parse({ ...ok, dueDate: null }).recurrence).toEqual({ frequency: null, endDate: null });
+  });
+  it("repetir exige prazo; data final não pode ser antes do prazo", () => {
+    const r1 = cardInputSchema.safeParse({ ...ok, dueDate: null, recurrence: { frequency: "MONTHLY" } });
+    expect(r1.success).toBe(false);
+    if (!r1.success) expect(firstError(r1.error)).toMatch(/defina um prazo/);
+    const r2 = cardInputSchema.safeParse({ ...ok, dueDate: "2026-11-10", recurrence: { frequency: "WEEKLY", endDate: "2026-11-01" } });
+    expect(r2.success).toBe(false);
+    expect(cardInputSchema.safeParse({ ...ok, dueDate: "2026-11-10", recurrence: { frequency: "WEEKLY", endDate: "" } }).success).toBe(true);
+  });
+});

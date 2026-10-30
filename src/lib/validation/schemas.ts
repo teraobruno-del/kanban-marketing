@@ -37,14 +37,30 @@ export const updateUserSchema = z.object({
 });
 
 // ── Cards ──
-export const cardInputSchema = z.object({
-  title: name("Título", 200),
-  description: z.string().max(20000, "Descrição muito longa.").default(""),
-  dueDate: dueDateSchema,
-  requesterAreaId: id,
-  labelIds: z.array(id).max(30).default([]),
-  assigneeIds: z.array(id).max(30).default([]),
+export const recurrenceSchema = z.object({
+  frequency: z.enum(["DAILY", "WEEKLY", "MONTHLY"]).nullable().default(null),
+  endDate: dueDateSchema.default(null),
 });
+
+export const cardInputSchema = z
+  .object({
+    title: name("Título", 200),
+    description: z.string().max(20000, "Descrição muito longa.").default(""),
+    dueDate: dueDateSchema,
+    requesterAreaId: id,
+    labelIds: z.array(id).max(30).default([]),
+    assigneeIds: z.array(id).max(30).default([]),
+    recurrence: recurrenceSchema.default({ frequency: null, endDate: null }),
+  })
+  .superRefine((v, ctx) => {
+    const r = v.recurrence;
+    if (r.frequency && !v.dueDate) {
+      ctx.addIssue({ code: "custom", message: "Para repetir a tarefa, defina um prazo.", path: ["recurrence"] });
+    }
+    if (r.frequency && r.endDate && v.dueDate && r.endDate < v.dueDate) {
+      ctx.addIssue({ code: "custom", message: "A data final da repetição não pode ser antes do prazo.", path: ["recurrence"] });
+    }
+  });
 export type CardInput = z.input<typeof cardInputSchema>;
 
 export const checklistTitleSchema = z.object({ title: name("Título da checklist", 120) });

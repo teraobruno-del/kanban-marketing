@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Hourglass, CheckCircle2, XCircle, Send } from "lucide-react";
+import { Bell, Hourglass, CheckCircle2, XCircle, Send, Repeat } from "lucide-react";
 import type { NotificationList, PendingApprovals } from "@/server/services/notifications";
 import { getInboxAction, markNotificationsReadAction } from "@/server/actions/approval";
 import { formatDateTime } from "@/lib/format";
@@ -24,6 +24,8 @@ function describe(n: Item): { icon: React.ReactNode; text: React.ReactNode } {
       return { icon: <Send className="text-violet-600" />, text: <>{n.actorName} enviou {title} para sua aprovação</> };
     case "CARD_APPROVED":
       return { icon: <CheckCircle2 className="text-emerald-600" />, text: <>{n.actorName} aprovou {title}</> };
+    case "RECURRENCE_CREATED":
+      return { icon: <Repeat className="text-sky-600" />, text: <>Nova tarefa da série: {title}</> };
     case "CARD_REJECTED":
       return {
         icon: <XCircle className="text-red-600" />,

@@ -70,6 +70,7 @@ enum NotificationType {
   APPROVAL_REQUESTED // para o criador: card aguardando sua aprovação
   CARD_APPROVED // para responsáveis/quem enviou: card aprovado
   CARD_REJECTED // para responsáveis/quem enviou: card reprovado (motivo em message)
+  RECURRENCE_CREATED // para responsáveis: nova tarefa da série recorrente
 }
 
 // ──────────────────────────── Usuários ────────────────────────────

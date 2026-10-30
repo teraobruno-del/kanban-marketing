@@ -42,3 +42,16 @@ export function describeDue(due: DateOnly, today: DateOnly): { text: string; ton
   const sameYear = due.slice(0, 4) === today.slice(0, 4);
   return { text: sameYear ? formatDateOnlyShort(due) : formatDateOnly(due), tone: "normal" };
 }
+
+export type Frequency = "DAILY" | "WEEKLY" | "MONTHLY";
+const WEEKDAY_FULL = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"];
+
+/** Resumo da repetição: "Repete toda semana (sexta), até 31/12/2026". */
+export function describeRecurrence(frequency: Frequency, dueDate: DateOnly | null, endDate: DateOnly | null): string {
+  let text =
+    frequency === "DAILY" ? "Repete todo dia"
+    : frequency === "WEEKLY" ? `Repete toda semana${dueDate ? ` (${WEEKDAY_FULL[isoWeekday(dueDate) - 1]})` : ""}`
+    : `Repete todo mês${dueDate ? ` (dia ${parseDateOnly(dueDate).day})` : ""}`;
+  text += endDate ? `, até ${formatDateOnly(endDate)}` : ", sem data para terminar";
+  return text;
+}

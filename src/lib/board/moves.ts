@@ -1,5 +1,5 @@
 import { getTimeColumn } from "@/lib/dates/time-column";
-import { todayInSaoPaulo, type DateOnly } from "@/lib/dates/day";
+import { addDaysToDateOnly, isoWeekday, todayInSaoPaulo, type DateOnly } from "@/lib/dates/day";
 import { BOARD_COLUMNS, getBoardColumn, type CardStage, type ColumnKey } from "./columns";
 
 /** Etapa de um card recém-criado (SPEC §6.A): com prazo → ACTIVE; sem prazo → NEW. */
@@ -24,6 +24,23 @@ export type DropResult =
   | { ok: false; reason: string; sameColumn?: boolean };
 
 const TIME_COLUMNS = new Set<ColumnKey>(["TODAY", "THIS_WEEK", "UPCOMING"]);
+
+export type TimeTarget = "TODAY" | "THIS_WEEK" | "UPCOMING";
+export const isTimeTarget = (k: ColumnKey): k is TimeTarget => TIME_COLUMNS.has(k);
+
+/**
+ * Data sugerida ao soltar numa coluna de prazo (SPEC §6.A + decisão 2A da Etapa 0):
+ * - HOJE: hoje;
+ * - ESTA SEMANA: sexta-feira, ou amanhã se a sexta já chegou; null no domingo (coluna bloqueada);
+ * - ESTE MÊS / PRÓXIMOS: segunda-feira da semana seguinte.
+ */
+export function suggestDueDate(target: TimeTarget, today: DateOnly): DateOnly | null {
+  const wd = isoWeekday(today); // 1 = seg … 7 = dom
+  if (target === "TODAY") return today;
+  if (target === "UPCOMING") return addDaysToDateOnly(today, 8 - wd);
+  if (wd === 7) return null;
+  return wd < 5 ? addDaysToDateOnly(today, 5 - wd) : addDaysToDateOnly(today, 1);
+}
 
 export function columnLabel(key: ColumnKey): string {
   const col = BOARD_COLUMNS.find((c) => c.key === key);
@@ -133,6 +150,7 @@ export function approvalDrop(
 export type DropPlan =
   | { kind: "same" } // soltou na mesma coluna: nada a fazer
   | { kind: "move"; stage: CardStage } // movimento normal
+  | { kind: "pickDate"; target: TimeTarget; suggested: DateOnly } // abrir a janela de data (F2)
   | { kind: "request" } // enviar para aprovação
   | { kind: "approve" }
   | { kind: "reject" } // abrir o motivo da reprovação
@@ -140,13 +158,14 @@ export type DropPlan =
 
 /**
  * Plano completo ao soltar um card numa coluna (tela e servidor seguem as mesmas regras):
- * aprovação (SPEC §6.E) primeiro, depois as regras normais (resolveDrop).
+ * aprovação (SPEC §6.E) primeiro; depois colunas de prazo (janela de data — §6.A); depois o resto.
  */
 export function planDrop(
   card: { stage: CardStage; dueDate: DateOnly | null },
   target: ColumnKey,
   today: DateOnly,
   userCanApprove: boolean,
+  userCanChangeDue = false,
 ): DropPlan {
   const approval = approvalDrop(card, target, userCanApprove);
   if (approval.kind !== "none") return approval;
@@ -156,6 +175,24 @@ export function planDrop(
       return { kind: "blocked", reason: "Tarefas finalizadas não vão para aprovação. Reabra a tarefa primeiro." };
     }
     return { kind: "request" };
+  }
+  if (isTimeTarget(target)) {
+    const r = resolveDrop(card, target, today);
+    if (r.ok) return { kind: "move", stage: r.stage };
+    if (r.sameColumn) return { kind: "same" };
+    const suggested = suggestDueDate(target, today);
+    if (suggested === null) {
+      return { kind: "blocked", reason: "No domingo a coluna ESTA SEMANA não recebe tarefas: a semana termina hoje." };
+    }
+    if (!userCanChangeDue) {
+      return {
+        kind: "blocked",
+        reason: card.dueDate
+          ? `${r.reason} Só o Administrador ou quem criou a tarefa pode mudar o prazo.`
+          : "Esta tarefa não tem prazo, e só o Administrador ou quem a criou pode definir um.",
+      };
+    }
+    return { kind: "pickDate", target, suggested };
   }
   const r = resolveDrop(card, target, today);
   if (!r.ok) return r.sameColumn ? { kind: "same" } : { kind: "blocked", reason: r.reason };

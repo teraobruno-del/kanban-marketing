@@ -90,10 +90,13 @@ npm run test:integration # todos os testes, incluindo os com banco (serviços + 
   O RLS protege o acesso direto pela API do Supabase (Realtime na F3). Mudou regra de permissão? Atualize os dois e os testes.
 - Lógica de arrastar está em `planDrop`/`resolveDrop` (`src/lib/board/moves.ts`) e é usada no navegador e no servidor.
 - Serviços de aprovação: `src/server/services/approval.ts`; sininho: `src/server/services/notifications.ts`.
+- Conclusão (checklist pendente + próxima tarefa da série) fica em `finishCard` (`src/server/services/completion.ts`),
+  usado por `moveCard` (→ DONE) e `approveCard`. Janela de data: `moveWithDueDate` + `suggestDueDate`/`planDrop` (`pickDate`).
 - Next.js 16: `params`/`searchParams`/`cookies()` são assíncronos; `cacheComponents` desligado de propósito.
 
 ## Estado atual
 - Etapa 0 concluída. **F1 concluída** (login e-mail/senha + Google opcional, quadros, acessos, áreas/labels, usuários,
   cards com checklist, arrastar e soltar, permissões + RLS). Revisão de UX/UI feita.
-- **F1.5 concluída** (aprovação com avisos no sistema). Próxima: **F2** — modal de data ao arrastar,
-  confirmação de checklist ao finalizar, recorrência. Depois F3 (colaboração) e F4 (dashboard).
+- **F1.5 concluída** (aprovação com avisos no sistema).
+- **F2 concluída** (janela de data ao arrastar, confirmação de checklist ao finalizar, recorrência).
+  Próxima: **F3** — comentários com @menção, anexos com capa, atualização ao vivo. Depois F4 (dashboard).

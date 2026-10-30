@@ -28,7 +28,10 @@ interface Props {
   today: DateOnly;
 }
 
-const EMPTY: CardFormValues = { title: "", description: "", dueDate: null, requesterAreaId: "", labelIds: [], assigneeIds: [] };
+const EMPTY: CardFormValues = {
+  title: "", description: "", dueDate: null, requesterAreaId: "", labelIds: [], assigneeIds: [],
+  recurrence: { frequency: null, endDate: null },
+};
 
 export function CardDialog(props: Props) {
   const [dirty, setDirty] = useState(false);
@@ -165,6 +168,7 @@ function CardDialogBody({
           requesterAreaId: detail.area.id,
           labelIds: detail.labels.map((l) => l.id),
           assigneeIds: detail.assignees.map((a) => a.id),
+          recurrence: { frequency: detail.recurrence?.frequency ?? null, endDate: detail.recurrence?.endDate ?? null },
         }}
         canEdit={detail.permissions.canEdit}
         canChangeDueDate={detail.permissions.canChangeDueDate}
@@ -188,6 +192,9 @@ function CardDialogBody({
             </div>
             {detail.completedAt && (
               <p className="text-xs text-emerald-700">Concluída em {formatDateTime(detail.completedAt)}</p>
+            )}
+            {detail.recurrence?.nextCreated && (
+              <p className="text-xs text-sky-800">🔁 A próxima tarefa desta série já foi criada.</p>
             )}
             <ApprovalPanel card={detail} currentUserId={currentUserId} dirty={formDirty} onChanged={async () => { await load(); setVersion((v) => v + 1); }} />
           </div>
