@@ -1,9 +1,10 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
+import { readDbUrl } from "./src/lib/db/url";
 
 // Configuração do Prisma (v7).
-// DIRECT_URL = conexão direta ao Postgres do Supabase (usada nas migrações).
-// Placeholder abaixo permite validar/gerar o schema antes de conectar o Supabase (F1).
+// DIRECT_URL = conexão "Session pooler" do Supabase, usada para criar/atualizar as tabelas.
+// Sem nenhuma variável (ex.: só gerar o código), usa um endereço de exemplo.
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -11,8 +12,8 @@ export default defineConfig({
   },
   datasource: {
     url:
-      process.env["DIRECT_URL"] ??
-      process.env["DATABASE_URL"] ??
+      readDbUrl("DIRECT_URL") ??
+      readDbUrl("DATABASE_URL") ??
       "postgresql://placeholder:placeholder@localhost:5432/placeholder",
   },
 });
