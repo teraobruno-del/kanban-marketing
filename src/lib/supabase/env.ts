@@ -1,18 +1,21 @@
-/** Variáveis do Supabase (aceita os nomes novos e antigos das chaves). */
+import { checkKey } from "@/lib/config/clean";
+import { publicSupabaseConfig } from "@/lib/config/public";
+
+/** Variáveis do Supabase, já limpas e conferidas (aceita os nomes novos e antigos das chaves). */
 export function supabaseUrl(): string {
-  const v = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!v) throw new Error("NEXT_PUBLIC_SUPABASE_URL não configurada.");
-  return v;
+  const { url } = publicSupabaseConfig();
+  if (!url.value) throw new Error(`NEXT_PUBLIC_SUPABASE_URL ${url.problem}`);
+  return url.value;
 }
 
 export function supabasePublicKey(): string {
-  const v = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!v) throw new Error("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY não configurada.");
-  return v;
+  const { key } = publicSupabaseConfig();
+  if (!key.value) throw new Error(`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ${key.problem}`);
+  return key.value;
 }
 
 export function supabaseSecretKey(): string {
-  const v = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!v) throw new Error("SUPABASE_SECRET_KEY não configurada.");
-  return v;
+  const k = checkKey(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
+  if (!k.value) throw new Error(`SUPABASE_SECRET_KEY ${k.problem}`);
+  return k.value;
 }
