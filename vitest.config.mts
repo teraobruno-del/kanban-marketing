@@ -13,5 +13,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Os testes de integração compartilham o mesmo banco: rodar um arquivo por vez.
+    fileParallelism: false,
   },
 });

@@ -54,19 +54,34 @@ npm run lint             # confere estilo do código
 npm run build            # monta a versão de produção
 npm run db:validate      # valida prisma/schema.prisma
 npm run db:generate      # gera o Prisma Client em src/generated/prisma
-npx prisma migrate dev   # (F1, com .env preenchido) cria/aplica migrações no Supabase
+npx prisma migrate dev   # cria nova migração a partir do schema (use um banco local no .env)
+npm run test:db:setup    # cria o banco local de testes (PostgreSQL local, usuário kanban/kanban)
+npm run test:integration # todos os testes, incluindo os com banco (serviços + RLS)
 ```
+- Vercel usa `npm run vercel-build` (gera Prisma Client, aplica migrações, monta o site).
+- Variáveis de ambiente: ver `.env.example`.
 
 ## Mapa de pastas
 - `src/app/` — páginas e rotas (Next.js App Router).
 - `src/components/ui/` — componentes do shadcn/ui · `board/`, `card/`, `dashboard/` — componentes das telas.
 - `src/lib/dates/` — regras de data (puras e testadas) · `src/lib/board/` — colunas do quadro.
 - `src/lib/auth/` — permissões · `src/lib/db/` — conexão Prisma · `src/lib/supabase/` — clientes Supabase · `src/lib/validation/` — esquemas Zod.
-- `src/server/actions/` — ações que alteram dados (validam permissão) · `src/server/queries/` — leituras.
+- `src/server/services/` — regras com banco (recebem `db` + usuário; conferem permissão; testados com banco real em `*.int.test.ts`).
+- `src/server/actions/` — Server Actions: pegam o usuário logado e chamam os serviços; erros viram mensagem em pt-BR.
+- `src/proxy.ts` — (antigo "middleware" no Next 16) renova a sessão e manda para /login quem não está logado.
 - `src/hooks/`, `src/types/` — utilidades de React e tipos compartilhados.
-- `prisma/` — schema e migrações · `supabase/policies/` — políticas de RLS (SQL).
+- `prisma/` — schema e migrações. As políticas de RLS ficam na migração `*_rls` (funções `app_*` + `auth.uid()`).
+- `scripts/` — banco local de testes (`test-db-setup.sh`, `local-supabase-shim.sql`).
 - `src/generated/` — código gerado pelo Prisma (não editar, fora do Git).
 - Testes ficam ao lado do código: `*.test.ts`.
 
+## Regras técnicas importantes
+- Permissão: **sempre** conferir no serviço (`src/lib/auth/permissions.ts`) — o Prisma conecta como dono das tabelas e ignora o RLS.
+  O RLS protege o acesso direto pela API do Supabase (Realtime na F3). Mudou regra de permissão? Atualize os dois e os testes.
+- Lógica de arrastar está em `resolveDrop` (`src/lib/board/moves.ts`) e é usada no navegador e no servidor.
+- Next.js 16: `params`/`searchParams`/`cookies()` são assíncronos; `cacheComponents` desligado de propósito.
+
 ## Estado atual
-- Etapa 0 concluída (base, schema, funções de data com testes). Próxima: **F1** — Supabase, login, quadros, cards, arrastar e soltar, permissões.
+- Etapa 0 concluída. **F1 concluída** (login e-mail/senha + Google opcional, quadros, acessos, áreas/labels, usuários,
+  cards com checklist, arrastar e soltar, permissões + RLS). Próxima: **F2** — modal de data ao arrastar,
+  confirmação de checklist ao finalizar, recorrência.

@@ -1,0 +1,39 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { requireUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/db/prisma";
+import { listActiveUsers } from "@/server/services/users";
+import { BoardSettings } from "@/components/settings/board-settings";
+
+export default async function BoardSettingsPage({ params }: { params: Promise<{ boardId: string }> }) {
+  const { boardId } = await params;
+  const user = await requireUser();
+  if (user.role !== "ADMIN") notFound();
+
+  const board = await prisma.board.findUnique({
+    where: { id: boardId },
+    include: {
+      members: { select: { userId: true } },
+      areas: { orderBy: { name: "asc" } },
+      labels: { orderBy: { name: "asc" } },
+    },
+  });
+  if (!board) notFound();
+  const users = await listActiveUsers(prisma, user);
+
+  return (
+    <main className="mx-auto w-full max-w-4xl space-y-6 p-6">
+      <div>
+        <Link href={`/boards/${board.id}`} className="text-sm text-muted-foreground hover:underline">← Voltar ao quadro</Link>
+        <h1 className="mt-1 text-2xl font-semibold">Configurações · {board.name}</h1>
+      </div>
+      <BoardSettings
+        board={{ id: board.id, name: board.name, archived: board.archivedAt !== null }}
+        memberIds={board.members.map((m) => m.userId)}
+        users={users}
+        areas={board.areas.map(({ id, name, color, isActive }) => ({ id, name, color, isActive }))}
+        labels={board.labels.map(({ id, name, color, isActive }) => ({ id, name, color, isActive }))}
+      />
+    </main>
+  );
+}

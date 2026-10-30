@@ -39,3 +39,35 @@ Em caso de conflito, a SPEC vale — exceto nos pontos abaixo, que esclarecem ou
 - O shadcn/ui foi configurado manualmente (`components.json`, `src/lib/utils.ts`, tema em `globals.css`),
   porque a rede do ambiente de nuvem bloqueou `ui.shadcn.com`. Para baixar componentes na F1,
   é preciso liberar esse endereço (ou rodar `npx shadcn add ...` em outro computador).
+
+## Decisões da F1 (aprovadas em 30/10/2026)
+
+1. **Cadastro de usuário com senha provisória**: o Administrador informa nome, e-mail, papel e uma senha
+   provisória; a pessoa pode trocar a senha depois (página "Minha conta"). Sem e-mail de convite.
+2. **Divisão F1/F2 no arrastar**: na F1, arrastar muda a etapa; soltar numa coluna de prazo só é aceito se o
+   prazo atual já corresponder à coluna. O modal de ajuste de data, a confirmação de checklist e a recorrência
+   ficam para a F2. (Para não gravar dados incoerentes, já na F1 mover para FINALIZADAS grava
+   `completedAt`/`completedOnTime` e sair de FINALIZADAS os limpa.)
+3. **Card na F1**: título, descrição (Markdown com pré-visualização), prazo, área, etiquetas, responsáveis e
+   checklist. Comentários e anexos → F3; recorrência → F2.
+4. **Login**: e-mail e senha primeiro; Google no final da F1, ativado pela variável `NEXT_PUBLIC_GOOGLE_LOGIN=true`.
+
+- **P10.** Primeiro Administrador: variáveis `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD` na Vercel. Enquanto não
+  existir nenhum usuário, entrar com esse e-mail e essa senha cria o Administrador.
+- **P11.** Detalhes do card abrem numa janela sobre o quadro.
+- **P12.** `react-markdown` para exibir Markdown (fora da lista da SPEC §9, necessário para a pré-visualização).
+- **P13.** Quadros arquivados ficam numa seção "Arquivados", visível só ao Administrador, que pode restaurá-los.
+- **P14.** Apenas tema claro por enquanto.
+- **P15.** Botão "+ Nova tarefa" no topo do quadro, só para Administrador e Membro.
+- **P16.** (a confirmar) Na mesma coluna, cards **sem prazo** ficam **depois** dos que têm prazo (entre si, por data de criação).
+
+## Notas técnicas da F1
+
+- O servidor acessa o banco com o Prisma (usuário dono das tabelas), e por isso **toda ação confere permissão
+  no código** (`src/lib/auth/permissions.ts`). Além disso, todas as tabelas têm **RLS** ligado com políticas
+  baseadas em `auth.uid()`: quem tentar acessar o banco diretamente pela chave pública do Supabase
+  só enxerga o que o seu papel permite.
+- Vercel: o comando `vercel-build` aplica as migrações (`prisma migrate deploy`) antes de montar o site.
+- `cacheComponents` do Next.js 16 foi desligado: todas as telas dependem do usuário logado.
+- Conexão com o banco: se `DATABASE_CA_CERT` (certificado do Supabase) estiver definida, a conexão é criptografada
+  e verificada. Desativar a verificação de certificado não é permitido.

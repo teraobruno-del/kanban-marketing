@@ -1,0 +1,53 @@
+import type { CardDetail } from "@/server/services/cards";
+import { formatDateOnly } from "@/lib/format";
+
+const STAGE: Record<string, string> = {
+  NEW: "NOVAS DEMANDAS",
+  ACTIVE: "coluna de prazo",
+  APPROVAL: "APROVAÇÃO",
+  CHANGES: "ALTERAÇÃO",
+  DONE: "FINALIZADAS",
+};
+const FIELD: Record<string, string> = { title: "o título", description: "a descrição", requesterArea: "a área solicitante" };
+
+type Ev = CardDetail["events"][number];
+
+/** Texto em português para cada evento do histórico. */
+export function describeEvent(e: Ev): string {
+  const d = (e.data ?? {}) as Record<string, unknown>;
+  const date = (v: unknown) => (typeof v === "string" ? formatDateOnly(v) : "sem prazo");
+  switch (e.type) {
+    case "CREATED": return "criou o card";
+    case "STAGE_CHANGED":
+      return d.reason === "dueDate"
+        ? `card foi para ${STAGE[e.toStage ?? ""]} por causa do prazo`
+        : `moveu de ${STAGE[e.fromStage ?? ""]} para ${STAGE[e.toStage ?? ""]}`;
+    case "COMPLETED": return "finalizou o card";
+    case "REOPENED": return `reabriu o card (foi para ${STAGE[e.toStage ?? ""]})`;
+    case "DUE_DATE_CHANGED": return `alterou o prazo de ${date(d.from)} para ${date(d.to)}`;
+    case "UPDATED": {
+      const fields = Array.isArray(d.fields) ? d.fields.map((f) => FIELD[String(f)] ?? String(f)) : [];
+      return fields.length ? `editou ${fields.join(", ")}` : "editou o card";
+    }
+    case "ASSIGNEES_CHANGED": return "alterou os responsáveis";
+    case "LABELS_CHANGED": return "alterou as etiquetas";
+    case "CHECKLIST_CHANGED":
+      switch (d.action) {
+        case "checklist_added": return `criou a checklist “${d.title}”`;
+        case "checklist_removed": return `removeu a checklist “${d.title}”`;
+        case "item_added": return `adicionou o item “${d.text}”`;
+        case "item_checked": return `concluiu o item “${d.text}”`;
+        case "item_unchecked": return `desmarcou o item “${d.text}”`;
+        case "item_removed": return `removeu o item “${d.text}”`;
+        default: return "alterou a checklist";
+      }
+    case "DELETED": return "excluiu o card";
+    case "RESTORED": return "restaurou o card";
+    case "COMMENTED": return "comentou";
+    case "ATTACHMENT_ADDED": return "anexou um arquivo";
+    case "ATTACHMENT_REMOVED": return "removeu um anexo";
+    case "COVER_CHANGED": return "alterou a capa";
+    case "RECURRENCE_SPAWNED": return "gerou o próximo card da recorrência";
+    default: return "alterou o card";
+  }
+}

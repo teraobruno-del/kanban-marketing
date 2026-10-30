@@ -1,9 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Sem "cacheComponents": todas as telas dependem do usuário logado, então são montadas a cada acesso.
   turbopack: {
     rules: {
       "*.css": {
