@@ -1,9 +1,10 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Hourglass, CheckCircle2, XCircle, Send, Repeat } from "lucide-react";
+import { Bell, Hourglass, CheckCircle2, XCircle, Send, Repeat, AtSign, MessageSquare } from "lucide-react";
 import type { NotificationList, PendingApprovals } from "@/server/services/notifications";
 import { getInboxAction, markNotificationsReadAction } from "@/server/actions/approval";
+import { useLiveNotifications } from "@/hooks/use-live-board";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -24,6 +25,10 @@ function describe(n: Item): { icon: React.ReactNode; text: React.ReactNode } {
       return { icon: <Send className="text-violet-600" />, text: <>{n.actorName} enviou {title} para sua aprovação</> };
     case "CARD_APPROVED":
       return { icon: <CheckCircle2 className="text-emerald-600" />, text: <>{n.actorName} aprovou {title}</> };
+    case "COMMENT_MENTION":
+      return { icon: <AtSign className="text-sky-600" />, text: <>{n.actorName} mencionou você em {title}</> };
+    case "COMMENT_ADDED":
+      return { icon: <MessageSquare className="text-slate-600" />, text: <>{n.actorName} comentou em {title}</> };
     case "RECURRENCE_CREATED":
       return { icon: <Repeat className="text-sky-600" />, text: <>Nova tarefa da série: {title}</> };
     case "CARD_REJECTED":
@@ -35,7 +40,7 @@ function describe(n: Item): { icon: React.ReactNode; text: React.ReactNode } {
 }
 
 /** Sininho de avisos (SPEC §6.E). Atualiza ao abrir e a cada minuto. */
-export function NotificationBell({ initial }: { initial: Inbox }) {
+export function NotificationBell({ initial, userId }: { initial: Inbox; userId: string }) {
   const [inbox, setInbox] = useState(initial);
   const router = useRouter();
 
@@ -44,6 +49,8 @@ export function NotificationBell({ initial }: { initial: Inbox }) {
       if (r.ok && r.data) setInbox(r.data);
     });
   }, []);
+
+  useLiveNotifications(userId, refresh);
 
   useEffect(() => {
     const t = setInterval(refresh, 60_000);

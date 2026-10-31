@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/prisma";
 import * as svc from "@/server/services/boards";
+import { supabaseStorage } from "@/lib/supabase/storage";
 import { run } from "./run";
 
 const refresh = (boardId?: string) => {
@@ -33,7 +34,7 @@ export async function setBoardArchivedAction(boardId: string, archived: boolean)
 
 export async function deleteBoardAction(boardId: string, confirmName: string) {
   return run(async (u) => {
-    await svc.deleteBoard(prisma, u, boardId, confirmName);
+    await svc.deleteBoard(prisma, u, boardId, confirmName, supabaseStorage());
     refresh();
   });
 }

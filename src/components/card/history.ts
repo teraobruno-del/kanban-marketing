@@ -45,9 +45,9 @@ export function describeEvent(e: Ev): string {
     case "DELETED": return "excluiu o card";
     case "RESTORED": return "restaurou o card";
     case "COMMENTED": return "comentou";
-    case "ATTACHMENT_ADDED": return "anexou um arquivo";
-    case "ATTACHMENT_REMOVED": return "removeu um anexo";
-    case "COVER_CHANGED": return "alterou a capa";
+    case "ATTACHMENT_ADDED": return typeof d.name === "string" ? `anexou “${d.name}”` : "anexou um arquivo";
+    case "ATTACHMENT_REMOVED": return typeof d.name === "string" ? `removeu o anexo “${d.name}”` : "removeu um anexo";
+    case "COVER_CHANGED": return d.removed ? "removeu a capa" : "alterou a capa";
     case "RECURRENCE_SPAWNED": return `criou a próxima tarefa da série (vence ${date(d.dueDate)})`;
     case "APPROVAL_REQUESTED": return "enviou para aprovação";
     case "APPROVED": return "aprovou a tarefa";

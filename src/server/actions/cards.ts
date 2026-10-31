@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import type { ColumnKey } from "@/lib/board/columns";
 import type { CardInput } from "@/lib/validation/schemas";
 import * as svc from "@/server/services/cards";
+import { supabaseStorage } from "@/lib/supabase/storage";
 import { run } from "./run";
 
 const refresh = (boardId: string) => revalidatePath(`/boards/${boardId}`);
@@ -14,7 +15,7 @@ async function boardOf(cardId: string) {
 }
 
 export async function getCardDetailAction(cardId: string) {
-  return run((u) => svc.getCardDetail(prisma, u, cardId));
+  return run((u) => svc.getCardDetail(prisma, u, cardId, { storage: supabaseStorage() }));
 }
 
 export async function createCardAction(boardId: string, input: CardInput) {

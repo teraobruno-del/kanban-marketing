@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Roteiros de teste no navegador (scripts Node simples)
+    "e2e/**",
+    // Código gerado pelo Prisma
+    "src/generated/**",
   ]),
 ]);
 

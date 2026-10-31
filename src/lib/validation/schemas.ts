@@ -79,3 +79,10 @@ export const rejectReasonSchema = z.object({
     .min(3, "Escreva o motivo da reprovação (pelo menos 3 caracteres).")
     .max(1000, "Motivo muito longo (máximo de 1000 caracteres)."),
 });
+
+// ── Comentários ──
+export const commentBodySchema = z
+  .string()
+  .trim()
+  .min(1, "Escreva um comentário.")
+  .max(5000, "Comentário muito longo (máximo de 5000 caracteres).");

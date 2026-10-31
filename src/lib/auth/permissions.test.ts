@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  canApprove, canBeAssignee, canChangeDueDate, canComment, canDeleteCard, canEditCards, canManage, canViewBoard,
+  canApprove, canBeAssignee, canChangeDueDate, canComment, canDeleteAttachment, canDeleteCard, canDeleteComment, canEditCards, canEditComment, canManage, canViewBoard,
   type Actor,
 } from "./permissions";
 
@@ -87,5 +87,21 @@ describe("Aprovar / reprovar (SPEC §6.E)", () => {
   });
   it("criador que perdeu acesso ao quadro não aprova", () => {
     expect(canApprove(member, outBoard, { createdById: "m" })).toBe(false);
+  });
+});
+
+describe("Comentários e anexos (F3)", () => {
+  it("comentário: edita só quem escreveu; exclui quem escreveu ou Administrador", () => {
+    expect(canEditComment(member, { authorId: "m" })).toBe(true);
+    expect(canEditComment(admin, { authorId: "m" })).toBe(false);
+    expect(canDeleteComment(admin, { authorId: "m" })).toBe(true);
+    expect(canDeleteComment(observer, { authorId: "o" })).toBe(true);
+    expect(canDeleteComment(member, { authorId: "o" })).toBe(false);
+  });
+  it("anexo: exclui quem enviou ou Administrador; Observador nunca", () => {
+    expect(canDeleteAttachment(member, inBoard, { uploadedById: "m" })).toBe(true);
+    expect(canDeleteAttachment(member, inBoard, { uploadedById: "outro" })).toBe(false);
+    expect(canDeleteAttachment(admin, outBoard, { uploadedById: "outro" })).toBe(true);
+    expect(canDeleteAttachment(observer, inBoard, { uploadedById: "o" })).toBe(false);
   });
 });

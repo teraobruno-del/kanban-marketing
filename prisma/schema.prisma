@@ -71,6 +71,14 @@ enum NotificationType {
   CARD_APPROVED // para responsáveis/quem enviou: card aprovado
   CARD_REJECTED // para responsáveis/quem enviou: card reprovado (motivo em message)
   RECURRENCE_CREATED // para responsáveis: nova tarefa da série recorrente
+  COMMENT_MENTION // alguém mencionou você num comentário
+  COMMENT_ADDED // novo comentário numa tarefa em que você é responsável ou criador
+}
+
+/// Tipo de comentário: normal ou motivo de reprovação (decisão F3-5A).
+enum CommentKind {
+  COMMENT
+  REJECTION
 }
 
 // ──────────────────────────── Usuários ────────────────────────────
@@ -324,13 +332,14 @@ model Attachment {
 // ────────────────────────── Comentários ──────────────────────────
 
 model Comment {
-  id        String    @id @default(uuid()) @db.Uuid
-  cardId    String    @map("card_id") @db.Uuid
-  authorId  String    @map("author_id") @db.Uuid
+  id        String      @id @default(uuid()) @db.Uuid
+  cardId    String      @map("card_id") @db.Uuid
+  authorId  String      @map("author_id") @db.Uuid
   body      String // Markdown, com @menções
-  editedAt  DateTime? @map("edited_at") @db.Timestamptz(3)
-  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  kind      CommentKind @default(COMMENT)
+  editedAt  DateTime?   @map("edited_at") @db.Timestamptz(3)
+  deletedAt DateTime?   @map("deleted_at") @db.Timestamptz(3)
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
 
   card     Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
   author   User             @relation(fields: [authorId], references: [id])

@@ -104,3 +104,25 @@ Comentários continuam na F3 (ordem normal das fases).
 - **P28.** Ícone 🔁 no quadro e resumo "Repete todo mês, até …" na tarefa.
 - **P29.** Tarefa na lixeira nunca gera a próxima.
 - Mudar o prazo de uma tarefa mensal recorrente redefine o "dia original" da série para o dia do novo prazo.
+
+## Decisões da F3 — Colaboração (aprovadas em 31/10/2026)
+
+1. **Avisos de comentário**: mencionados com @ + responsáveis + quem criou (nunca quem comentou).
+   Quem foi mencionado recebe "mencionou você"; os demais, "comentou".
+2. **@menção**: qualquer pessoa com acesso ao quadro (inclusive Observadores; Administradores sempre).
+3. **Editar/excluir comentário**: cada um os próprios; Administrador exclui qualquer um.
+   Mostra "(editado)" e "comentário excluído".
+4. **Ordem**: campo de escrever no topo, mais recentes primeiro.
+5. **Reprovação** também vira um comentário destacado na conversa.
+6. **Anexos**: qualquer tipo até 10 MB, exceto executáveis (.exe, .bat, .cmd, .msi, .sh, .ps1, .vbs, .jar, .apk…).
+7. **Excluir anexo**: quem enviou ou Administrador.
+8. **Ao vivo**: tarefa aberta se atualiza sozinha; se você estiver editando, aparece "alterada por outra pessoa" + Recarregar.
+
+- **P17** Markdown nos comentários · **P18** @ abre lista de pessoas; nome mencionado destacado ·
+  **P19** 💬 e 📎 com contagens no card · **P21** histórico registra "comentou" sem o texto.
+- **P30** Anexar por botão, arrastando o arquivo ou colando imagem (Ctrl+V).
+- **P31** Arquivos privados no Supabase Storage (bucket `attachments`, criado automaticamente);
+  envio direto do navegador por link assinado (o servidor confere permissão e tamanho); abertura por links temporários.
+- **P32** Miniaturas de imagens; imagem escolhida como capa aparece no topo do card. SVG é tratado como arquivo (não vira capa).
+- **P33** Lixeira mantém arquivos; excluir quadro apaga os arquivos dele.
+- **P34** Plano B: sem conexão ao vivo, a tela se atualiza a cada 30 s.

@@ -1,5 +1,5 @@
 "use client";
-import { CheckSquare, AlignLeft, CalendarDays, CheckCircle2, AlertTriangle, Hourglass, Repeat } from "lucide-react";
+import { CheckSquare, AlignLeft, CalendarDays, CheckCircle2, AlertTriangle, Hourglass, Repeat, MessageSquare, Paperclip } from "lucide-react";
 import type { BoardCard } from "@/server/services/cards";
 import type { DateOnly } from "@/lib/dates/day";
 import { describeDue, initials } from "@/lib/format";
@@ -26,8 +26,13 @@ export function CardTile({ card, today, dragging, awaitingMe }: { card: BoardCar
         "rounded-lg border bg-card p-3 text-left shadow-xs transition hover:border-foreground/20 hover:shadow-md",
         due?.tone === "overdue" && "border-red-300",
         dragging && "rotate-2 shadow-xl ring-2 ring-primary/20",
+        card.coverUrl && "overflow-hidden pt-0",
       )}
     >
+      {card.coverUrl && (
+        // eslint-disable-next-line @next/next/no-img-element -- link temporário do Supabase
+        <img src={card.coverUrl} alt="" className="-mx-3 mb-2 block h-28 w-[calc(100%+1.5rem)] max-w-none object-cover" draggable={false} />
+      )}
       <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
         <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: card.area.color }} aria-hidden />
         <span className="truncate font-medium">{card.area.name}</span>
@@ -67,6 +72,12 @@ export function CardTile({ card, today, dragging, awaitingMe }: { card: BoardCar
         ) : null}
         {card.isRecurring && <Repeat className="size-3.5 text-sky-700" aria-label="Tarefa recorrente" />}
         {card.hasDescription && <AlignLeft className="size-3.5" aria-label="Tem descrição" />}
+        {card.commentCount > 0 && (
+          <span className="flex items-center gap-1" title="Comentários"><MessageSquare className="size-3.5" /> {card.commentCount}</span>
+        )}
+        {card.attachmentCount > 0 && (
+          <span className="flex items-center gap-1" title="Anexos"><Paperclip className="size-3.5" /> {card.attachmentCount}</span>
+        )}
         {card.checklistTotal > 0 && (
           <span className={cn("flex items-center gap-1", checklistComplete && "font-medium text-emerald-700")} title="Checklist">
             <CheckSquare className="size-3.5" /> {card.checklistDone}/{card.checklistTotal}

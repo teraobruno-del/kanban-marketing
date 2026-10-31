@@ -61,6 +61,8 @@ npm run db:generate      # gera o Prisma Client em src/generated/prisma
 npx prisma migrate dev   # cria nova migração a partir do schema (use um banco local no .env)
 npm run test:db:setup    # cria o banco local de testes (PostgreSQL local, usuário kanban/kanban)
 npm run test:integration # todos os testes, incluindo os com banco (serviços + RLS)
+bash e2e/run.sh          # teste completo no navegador (Playwright) com "Supabase de mentirinha" (Auth + Storage)
+bash e2e/run.sh --keep   # idem, deixando o site em http://localhost:3000 (pare com: bash e2e/run.sh --stop)
 ```
 - Vercel usa `npm run vercel-build` (gera Prisma Client, aplica migrações, monta o site).
 - Variáveis de ambiente: ver `.env.example`.
@@ -76,6 +78,7 @@ npm run test:integration # todos os testes, incluindo os com banco (serviços + 
 - `src/hooks/`, `src/types/` — utilidades de React e tipos compartilhados.
 - `prisma/` — schema e migrações. As políticas de RLS ficam na migração `*_rls` (funções `app_*` + `auth.uid()`).
 - `scripts/` — banco local de testes (`test-db-setup.sh`, `local-supabase-shim.sql`).
+- `e2e/` — teste no navegador: `fake-supabase.mjs` (imita Auth/Storage; sem Realtime), `flow.cjs` (roteiro), `run.sh`.
 - `src/generated/` — código gerado pelo Prisma (não editar, fora do Git).
 - Testes ficam ao lado do código: `*.test.ts`.
 
@@ -93,10 +96,17 @@ npm run test:integration # todos os testes, incluindo os com banco (serviços + 
 - Conclusão (checklist pendente + próxima tarefa da série) fica em `finishCard` (`src/server/services/completion.ts`),
   usado por `moveCard` (→ DONE) e `approveCard`. Janela de data: `moveWithDueDate` + `suggestDueDate`/`planDrop` (`pickDate`).
 - Next.js 16: `params`/`searchParams`/`cookies()` são assíncronos; `cacheComponents` desligado de propósito.
+- Comentários: `src/server/services/comments.ts` (menções em `src/lib/mentions.ts`). Anexos: `attachments.ts` com
+  `StoragePort` (real em `src/lib/supabase/storage.ts`, bucket privado `attachments` criado sozinho). Envio em 2 passos:
+  link assinado → navegador envia direto ao Storage → servidor confirma e confere o tamanho real (Vercel não aceita
+  corpos grandes). Regras de arquivo em `src/lib/attachments.ts`.
+- Ao vivo: `useLiveBoard`/`useLiveNotifications` (`src/hooks/use-live-board.ts`) escutam INSERT em `card_events`
+  e `notifications` (publicação `supabase_realtime`, migração `*_collaboration`); plano B: recarrega a cada 30 s.
+  O Realtime só pode ser testado no site publicado (o simulador local não o imita).
 
 ## Estado atual
 - Etapa 0 concluída. **F1 concluída** (login e-mail/senha + Google opcional, quadros, acessos, áreas/labels, usuários,
   cards com checklist, arrastar e soltar, permissões + RLS). Revisão de UX/UI feita.
 - **F1.5 concluída** (aprovação com avisos no sistema).
 - **F2 concluída** (janela de data ao arrastar, confirmação de checklist ao finalizar, recorrência).
-  Próxima: **F3** — comentários com @menção, anexos com capa, atualização ao vivo. Depois F4 (dashboard).
+- **F3 concluída** (comentários com @menção, anexos com capa, atualização ao vivo). Próxima: **F4** — dashboard.

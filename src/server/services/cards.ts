@@ -1,7 +1,8 @@
 import type { Db } from "@/lib/db/client";
 import type { Prisma } from "@/generated/prisma/client";
 import {
-  canApprove, canBeAssignee, canChangeDueDate, canDeleteCard, canEditCards, type Actor, type BoardAccess, type Role,
+  canApprove, canBeAssignee, canChangeDueDate, canComment, canDeleteAttachment, canDeleteCard, canDeleteComment,
+  canEditCards, canEditComment, type Actor, type BoardAccess, type Role,
 } from "@/lib/auth/permissions";
 import { dateOnlyFromDb, dateOnlyToDb, parseDateOnly, todayInSaoPaulo, type DateOnly } from "@/lib/dates/day";
 import type { ColumnKey } from "@/lib/board/columns";
@@ -13,6 +14,8 @@ import { forbidden, invalid, notFound } from "@/server/errors";
 import { loadBoardAccess } from "./boards";
 import { requestApproval } from "./approval";
 import { finishCard } from "./completion";
+import { listComments, listMentionableUsers } from "./comments";
+import { listAttachments, type StoragePort } from "./attachments";
 import { parse } from "./util";
 
 type Tx = Prisma.TransactionClient;
@@ -24,17 +27,27 @@ const cardListInclude = {
   labels: { include: { label: { select: { id: true, name: true, color: true } } } },
   assignees: { include: { user: { select: { id: true, name: true } } } },
   checklists: { select: { items: { select: { isDone: true } } } },
+  coverAttachment: { select: { storagePath: true } },
+  _count: { select: { comments: { where: { deletedAt: null } }, attachments: true } },
 } satisfies Prisma.CardInclude;
 
+/** Dependências opcionais (armazenamento de arquivos); nos testes podem faltar. */
+export interface CardDeps {
+  storage?: StoragePort;
+}
+
 /** Tudo o que a tela do quadro precisa. */
-export async function getBoardView(db: Db, actor: Actor, boardId: string) {
+export async function getBoardView(db: Db, actor: Actor, boardId: string, deps: CardDeps = {}) {
   const { board, access } = await loadBoardAccess(db, actor, boardId);
-  const [cards, areas, labels, assignableUsers] = await Promise.all([
+  const [cards, areas, labels, assignableUsers, mentionableUsers] = await Promise.all([
     db.card.findMany({ where: { boardId, deletedAt: null }, include: cardListInclude }),
     db.requesterArea.findMany({ where: { boardId }, orderBy: { name: "asc" } }),
     db.label.findMany({ where: { boardId }, orderBy: { name: "asc" } }),
     listAssignableUsers(db, boardId),
+    listMentionableUsers(db, boardId),
   ]);
+  const coverPaths = cards.flatMap((c) => (c.coverAttachment ? [c.coverAttachment.storagePath] : []));
+  const coverUrls = deps.storage && coverPaths.length ? await deps.storage.createDownloadUrls(coverPaths, 60 * 60) : {};
   return {
     board: { id: board.id, name: board.name, archived: board.archivedAt !== null },
     access,
@@ -54,11 +67,15 @@ export async function getBoardView(db: Db, actor: Actor, boardId: string) {
         checklistDone: items.filter((i) => i.isDone).length,
         hasDescription: c.description.trim().length > 0,
         isRecurring: c.isRecurring,
+        commentCount: c._count.comments,
+        attachmentCount: c._count.attachments,
+        coverUrl: c.coverAttachment ? (coverUrls[c.coverAttachment.storagePath] ?? null) : null,
       };
     }),
     areas: areas.map(({ id, name, color, isActive }) => ({ id, name, color, isActive })),
     labels: labels.map(({ id, name, color, isActive }) => ({ id, name, color, isActive })),
     assignableUsers,
+    mentionableUsers,
   };
 }
 
@@ -75,7 +92,7 @@ export async function listAssignableUsers(db: Db, boardId: string) {
   return users;
 }
 
-export async function getCardDetail(db: Db, actor: Actor, cardId: string) {
+export async function getCardDetail(db: Db, actor: Actor, cardId: string, deps: CardDeps = {}) {
   const card = await db.card.findUnique({
     where: { id: cardId },
     include: {
@@ -95,8 +112,22 @@ export async function getCardDetail(db: Db, actor: Actor, cardId: string) {
   });
   if (!card || card.deletedAt) throw notFound("Card não encontrado.");
   const { access } = await loadBoardAccess(db, actor, card.boardId);
+  const [comments, attachments] = await Promise.all([
+    listComments(db, card.id),
+    listAttachments(db, deps.storage, card.id),
+  ]);
   return {
     id: card.id,
+    coverAttachmentId: card.coverAttachmentId,
+    comments: comments.map((c) => ({
+      ...c,
+      canEdit: !c.deleted && canEditComment(actor, { authorId: c.author.id }),
+      canDelete: !c.deleted && canDeleteComment(actor, { authorId: c.author.id }),
+    })),
+    attachments: attachments.map((a) => ({
+      ...a,
+      canDelete: canDeleteAttachment(actor, access, { uploadedById: a.uploadedBy.id }),
+    })),
     boardId: card.boardId,
     title: card.title,
     description: card.description,
@@ -136,6 +167,7 @@ export async function getCardDetail(db: Db, actor: Actor, cardId: string) {
       return e && reason ? { actorName: e.actor.name, reason, createdAt: e.createdAt.toISOString() } : null;
     })(),
     permissions: {
+      canComment: canComment(actor, access),
       canApprove: canApprove(actor, access, card),
       canEdit: canEditCards(actor, access),
       canChangeDueDate: canChangeDueDate(actor, access, card),

@@ -45,3 +45,6 @@ next-env.d.ts
 
 # prisma client gerado
 /src/generated/
+
+# testes no navegador (e2e): fotos e registros
+/e2e/out/

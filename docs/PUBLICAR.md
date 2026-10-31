@@ -105,3 +105,17 @@ Faça só quando o resto estiver funcionando. Passo a passo:
 1. Mude `NEXT_PUBLIC_GOOGLE_LOGIN` para `true` e faça **Redeploy**.
 2. O botão "Entrar com Google" aparece na tela de login. Só entra quem já foi cadastrado
    pelo Administrador com o mesmo e-mail.
+
+---
+
+## Parte 5 — Conferir anexos e atualização ao vivo (F3)
+
+Nada para configurar: o espaço privado de arquivos (`attachments`) é criado sozinho no primeiro envio,
+e a atualização ao vivo é ligada pela própria publicação.
+
+Para conferir a atualização ao vivo:
+1. Abra o site em duas janelas: uma normal (Administrador) e uma anônima (um Membro).
+2. Nas duas, abra o mesmo quadro.
+3. Na janela do Membro, arraste uma tarefa ou comente nela.
+4. A janela do Administrador deve mudar sozinha em cerca de 1 segundo (sem recarregar a página).
+   Se demorar até 30 segundos, a conexão ao vivo não abriu e o plano B está funcionando — avise.

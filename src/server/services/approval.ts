@@ -9,6 +9,7 @@ import { loadBoardAccess } from "./boards";
 import { parse } from "./util";
 import { createNotifications as notify } from "./notifications";
 import { finishCard } from "./completion";
+import { addRejectionComment } from "./comments";
 
 type Tx = Prisma.TransactionClient;
 
@@ -99,6 +100,7 @@ export async function rejectCard(db: Db, actor: Actor, cardId: string, rawReason
         fromStage: "APPROVAL", toStage: "CHANGES", data: { reason }, createdAt: now,
       },
     });
+    await addRejectionComment(tx, cardId, actor.id, reason, now);
     const requester = await lastRequester(tx, cardId);
     await notify(tx, [...card.assignees.map((a) => a.userId), ...(requester ? [requester] : [])], {
       type: "CARD_REJECTED", cardId, actorId: actor.id, message: reason,

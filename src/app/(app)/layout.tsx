@@ -11,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
   return (
     <div className="flex min-h-dvh flex-col bg-muted/30">
-      <AppHeader user={{ name: user.name, email: user.email, role: user.role }} inbox={{ notifications, pending }} />
+      <AppHeader user={{ id: user.id, name: user.name, email: user.email, role: user.role }} inbox={{ notifications, pending }} />
       <div className="flex flex-1 flex-col">{children}</div>
     </div>
   );

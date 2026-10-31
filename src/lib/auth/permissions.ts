@@ -78,3 +78,18 @@ export function canApprove(actor: Actor, access: BoardAccess, card: { createdByI
   if (!canEditCards(actor, access)) return false;
   return actor.role === "ADMIN" || card.createdById === actor.id;
 }
+
+/** Editar comentário: só quem escreveu (decisão F3-3A). */
+export function canEditComment(actor: Actor, comment: { authorId: string }): boolean {
+  return actor.isActive && comment.authorId === actor.id;
+}
+
+/** Excluir comentário: quem escreveu ou Administrador. */
+export function canDeleteComment(actor: Actor, comment: { authorId: string }): boolean {
+  return actor.isActive && (actor.role === "ADMIN" || comment.authorId === actor.id);
+}
+
+/** Excluir anexo: quem enviou ou Administrador (decisão F3-7A), desde que ainda possa editar no quadro. */
+export function canDeleteAttachment(actor: Actor, access: BoardAccess, attachment: { uploadedById: string }): boolean {
+  return canEditCards(actor, access) && (actor.role === "ADMIN" || attachment.uploadedById === actor.id);
+}

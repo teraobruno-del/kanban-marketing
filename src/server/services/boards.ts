@@ -65,17 +65,23 @@ export async function setBoardArchived(db: Db, actor: Actor, boardId: string, ar
 }
 
 /** Exclusão definitiva do quadro e de tudo dentro dele (pedido explícito do Admin). */
-export async function deleteBoard(db: Db, actor: Actor, boardId: string, confirmName: string) {
+export async function deleteBoard(
+  db: Db, actor: Actor, boardId: string, confirmName: string,
+  storage?: { remove(paths: string[]): Promise<void> },
+) {
   requireAdmin(actor);
   const board = await db.board.findUnique({ where: { id: boardId } });
   if (!board) throw notFound("Quadro não encontrado.");
   if (confirmName.trim() !== board.name) throw invalid("Digite o nome exato do quadro para confirmar.");
+  // Arquivos do quadro são apagados junto (P33).
+  const files = (await db.attachment.findMany({ where: { card: { boardId } }, select: { storagePath: true } })).map((a) => a.storagePath);
   await db.$transaction(async (tx) => {
     // Cards referenciam áreas/labels sem cascata: apagar os cards primeiro.
     await tx.card.updateMany({ where: { boardId }, data: { coverAttachmentId: null, recurrenceParentId: null } });
     await tx.card.deleteMany({ where: { boardId } });
     await tx.board.delete({ where: { id: boardId } });
   });
+  if (storage && files.length) await storage.remove(files);
 }
 
 /** Define quem tem acesso ao quadro (substitui a lista inteira). */

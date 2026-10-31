@@ -12,6 +12,7 @@ import { planDrop, type DropPlan } from "@/lib/board/moves";
 import { groupCardsByColumn } from "@/lib/board/sort";
 import type { DateOnly } from "@/lib/dates/day";
 import { useToday } from "@/hooks/use-today";
+import { useLiveBoard } from "@/hooks/use-live-board";
 import { moveCardAction, moveWithDueDateAction } from "@/server/actions/cards";
 import { approveCardAction, rejectCardAction } from "@/server/actions/approval";
 import { RejectDialog } from "@/components/card/reject-dialog";
@@ -40,6 +41,7 @@ interface Props {
 
 export function BoardView({ view, initialCardId, initialToday, canEdit, isAdmin, currentUserId }: Props) {
   const today = useToday(initialToday);
+  useLiveBoard(view.board.id, currentUserId);
   // Mostra o card na coluna nova na hora; se o servidor recusar, ele volta sozinho.
   const [cards, applyMove] = useOptimistic(
     view.cards,

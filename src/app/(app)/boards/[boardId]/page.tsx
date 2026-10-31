@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { canEditCards } from "@/lib/auth/permissions";
 import { todayInSaoPaulo } from "@/lib/dates/day";
 import { getBoardView } from "@/server/services/cards";
+import { supabaseStorage } from "@/lib/supabase/storage";
 import { AppError } from "@/server/errors";
 import { BoardView } from "@/components/board/board-view";
 
@@ -15,7 +16,7 @@ export default async function BoardPage({
   const user = await requireUser();
   let view;
   try {
-    view = await getBoardView(prisma, user, boardId);
+    view = await getBoardView(prisma, user, boardId, { storage: supabaseStorage() });
   } catch (e) {
     if (e instanceof AppError) notFound();
     throw e;

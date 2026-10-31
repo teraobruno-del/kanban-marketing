@@ -17,6 +17,11 @@ import { CardForm, type CardFormValues } from "./card-form";
 import { Checklists } from "./checklists";
 import { describeEvent } from "./history";
 import { ApprovalPanel } from "./approval-panel";
+import { Attachments } from "./attachments";
+import { Comments, type CommentDraft } from "./comments";
+import { useUpload } from "./use-upload";
+import { CARD_CHANGED_EVENT } from "@/hooks/use-live-board";
+import { Upload, RefreshCw } from "lucide-react";
 
 interface Props {
   /** "new" = criar; id = abrir card existente; null = fechado. */
@@ -74,6 +79,9 @@ function CardDialogBody({
   const [error, setError] = useState<string>();
   const [showHistory, setShowHistory] = useState(false);
   const [formDirty, setFormDirty] = useState(false);
+  const [draft, setDraft] = useState<CommentDraft>({ body: "", mentionIds: [] });
+  const [changedRemotely, setChangedRemotely] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const confirm = useConfirm();
 
   const load = useCallback(async () => {
@@ -84,6 +92,25 @@ function CardDialogBody({
       setError(undefined);
     } else setError(r.error);
   }, [cardId]);
+
+  const reload = useCallback(async () => {
+    await load();
+    setVersion((v) => v + 1);
+    setChangedRemotely(false);
+  }, [load]);
+  const { upload, uploading } = useUpload(cardId && cardId !== "new" ? cardId : "", load);
+
+  // Outra pessoa mexeu nesta tarefa (atualização ao vivo — decisão F3-8A).
+  useEffect(() => {
+    if (!cardId || cardId === "new") return;
+    const onChange = (e: Event) => {
+      if ((e as CustomEvent<{ cardId: string }>).detail.cardId !== cardId) return;
+      if (formDirty) setChangedRemotely(true);
+      else void reload();
+    };
+    window.addEventListener(CARD_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(CARD_CHANGED_EVENT, onChange);
+  }, [cardId, formDirty, reload]);
 
   // Carrega o card quando a janela abre.
   useEffect(() => {
@@ -148,8 +175,44 @@ function CardDialogBody({
   const columnKey = getBoardColumn(detail, today);
   const column = BOARD_COLUMNS.find((c) => c.key === columnKey)!;
 
+  const canAttach = detail.permissions.canEdit;
+  const filesOf = (dt: DataTransfer | null) => Array.from(dt?.files ?? []);
+
   return (
-    <>
+    <div
+      className="relative"
+      onDragOver={(e) => {
+        if (!canAttach || !e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={(e) => { if (e.currentTarget === e.target) setDragOver(false); }}
+      onDrop={(e) => {
+        if (!canAttach || !e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDragOver(false);
+        void upload(filesOf(e.dataTransfer));
+      }}
+      onPaste={(e) => {
+        const files = filesOf(e.clipboardData).filter((f) => f.type.startsWith("image/"));
+        if (!canAttach || files.length === 0) return;
+        e.preventDefault();
+        void upload(files.map((f, i) => (f.name && f.name !== "image.png" ? f : new File([f], `imagem-colada-${Date.now()}-${i + 1}.png`, { type: f.type }))));
+      }}
+    >
+      {dragOver && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-background/90 text-sm font-medium">
+          <Upload className="mr-2 size-5" /> Solte os arquivos para anexar
+        </div>
+      )}
+      {changedRemotely && (
+        <div className="mb-3 flex items-center gap-3 rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-900" role="status">
+          Esta tarefa foi alterada por outra pessoa.
+          <Button type="button" size="sm" variant="outline" className="ml-auto" onClick={() => void reload()}>
+            <RefreshCw /> Recarregar
+          </Button>
+        </div>
+      )}
       <DialogHeader className="mb-2 pr-8">
         <DialogTitle className="sr-only">{detail.title}</DialogTitle>
         <DialogDescription className="text-xs">
@@ -202,6 +265,8 @@ function CardDialogBody({
         main={
           <>
             <Checklists card={detail} canEdit={detail.permissions.canEdit} onChanged={load} />
+            <Attachments card={detail} uploading={uploading} onPick={(f) => void upload(f)} onChanged={load} />
+            <Comments card={detail} people={board.mentionableUsers} draft={draft} setDraft={setDraft} onChanged={load} />
             <section className="space-y-2">
               <button
                 type="button"
@@ -251,6 +316,6 @@ function CardDialogBody({
           )
         }
       />
-    </>
+    </div>
   );
 }
