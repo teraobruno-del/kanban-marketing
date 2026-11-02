@@ -232,6 +232,22 @@ describe.skipIf(!TEST_DATABASE_URL)("Serviços com banco de dados (integração)
       expect(view.cards[0]).toMatchObject({ checklistTotal: 1, checklistDone: 1 });
       await expectCode(cards.toggleChecklistItem(db, s.observer, item.id, false, NOW), "FORBIDDEN");
     });
+
+    it("edita o texto do item e o título da checklist; Observador não edita", async () => {
+      const c = await cards.createCard(db, s.member, s.board.id, base(), NOW);
+      await cards.addChecklist(db, s.member, c.id, { title: "Tarefas" });
+      const cl = await db.checklist.findFirstOrThrow({ where: { cardId: c.id } });
+      await cards.addChecklistItem(db, s.member, cl.id, { text: "Roteiro" });
+      const item = await db.checklistItem.findFirstOrThrow({ where: { checklistId: cl.id } });
+      await cards.editChecklistItem(db, s.member2, item.id, { text: "Roteiro do vídeo" });
+      await cards.renameChecklist(db, s.member2, cl.id, { title: "Etapas" });
+      expect((await db.checklistItem.findUniqueOrThrow({ where: { id: item.id } })).text).toBe("Roteiro do vídeo");
+      expect((await db.checklist.findUniqueOrThrow({ where: { id: cl.id } })).title).toBe("Etapas");
+      await expectCode(cards.editChecklistItem(db, s.observer, item.id, { text: "x" }), "FORBIDDEN");
+      await expectCode(cards.editChecklistItem(db, s.member, item.id, { text: "  " }), "INVALID");
+      const actions = (await db.cardEvent.findMany({ where: { cardId: c.id, type: "CHECKLIST_CHANGED" } })).map((e) => (e.data as { action: string }).action);
+      expect(actions).toEqual(expect.arrayContaining(["item_edited", "checklist_renamed"]));
+    });
   });
 
   describe("Quadros", () => {

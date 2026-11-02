@@ -100,3 +100,17 @@ export async function deleteChecklistItemAction(cardId: string, itemId: string) 
     await afterChecklist(cardId);
   });
 }
+
+export async function renameChecklistAction(cardId: string, checklistId: string, title: string) {
+  return run(async (u) => {
+    await svc.renameChecklist(prisma, u, checklistId, { title });
+    await afterChecklist(cardId);
+  });
+}
+
+export async function editChecklistItemAction(cardId: string, itemId: string, text: string) {
+  return run(async (u) => {
+    await svc.editChecklistItem(prisma, u, itemId, { text });
+    await afterChecklist(cardId);
+  });
+}

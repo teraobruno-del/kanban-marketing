@@ -60,6 +60,10 @@ export function CardDialog(props: Props) {
   return (
     <Dialog open={props.cardId !== null} onOpenChange={handleOpenChange}>
       <DialogContent
+        // Esc dentro de uma edição na linha (ou da lista de @) só cancela aquela edição, sem fechar a janela.
+        onEscapeKeyDown={(e) => {
+          if ((e.target as HTMLElement | null)?.closest?.("[data-escape-local]")) e.preventDefault();
+        }}
         className="gap-0 sm:max-w-4xl max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none"
       >
         {/* key: cada card aberto começa do zero */}

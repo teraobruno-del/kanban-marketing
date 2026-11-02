@@ -39,6 +39,8 @@ export function describeEvent(e: Ev): string {
         case "item_checked": return `concluiu o item “${d.text}”`;
         case "item_unchecked": return `desmarcou o item “${d.text}”`;
         case "item_removed": return `removeu o item “${d.text}”`;
+        case "item_edited": return `editou o item “${d.from}” para “${d.text}”`;
+        case "checklist_renamed": return `renomeou a checklist “${d.from}” para “${d.title}”`;
         case "all_completed": return `marcou ${d.count} ${d.count === 1 ? "item pendente" : "itens pendentes"} da checklist como concluídos`;
         default: return "alterou a checklist";
       }

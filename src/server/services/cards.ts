@@ -500,6 +500,28 @@ export async function toggleChecklistItem(db: Db, actor: Actor, itemId: string, 
   });
 }
 
+/** Renomear checklist (Administrador ou Membro do quadro). */
+export async function renameChecklist(db: Db, actor: Actor, checklistId: string, raw: { title: string }) {
+  const { checklist, card } = await requireEditableChecklist(db, actor, checklistId);
+  const { title } = parse(checklistTitleSchema, raw);
+  if (title === checklist.title) return;
+  await db.$transaction(async (tx) => {
+    await tx.checklist.update({ where: { id: checklistId }, data: { title } });
+    await addEvent(tx, card, actor, "CHECKLIST_CHANGED", { data: { action: "checklist_renamed", from: checklist.title, title } });
+  });
+}
+
+/** Editar o texto de um item da checklist (Administrador ou Membro do quadro). */
+export async function editChecklistItem(db: Db, actor: Actor, itemId: string, raw: { text: string }) {
+  const { item, card } = await requireEditableItem(db, actor, itemId);
+  const { text } = parse(checklistItemTextSchema, raw);
+  if (text === item.text) return;
+  await db.$transaction(async (tx) => {
+    await tx.checklistItem.update({ where: { id: itemId }, data: { text } });
+    await addEvent(tx, card, actor, "CHECKLIST_CHANGED", { data: { action: "item_edited", from: item.text, text } });
+  });
+}
+
 export async function deleteChecklistItem(db: Db, actor: Actor, itemId: string) {
   const { item, card } = await requireEditableItem(db, actor, itemId);
   await db.$transaction(async (tx) => {

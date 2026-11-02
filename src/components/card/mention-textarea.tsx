@@ -57,7 +57,7 @@ export function MentionTextarea({
   };
 
   return (
-    <div className="relative">
+    <div className="relative" data-escape-local={matches.length > 0 ? "" : undefined}>
       <Textarea
         id={id}
         ref={ref}
