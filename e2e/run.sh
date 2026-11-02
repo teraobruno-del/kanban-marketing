@@ -20,7 +20,8 @@ stop() {
   for f in "$OUT/app.pid" "$OUT/fake.pid"; do
     [ -f "$f" ] && { pkill -P "$(cat "$f")" 2>/dev/null || true; kill "$(cat "$f")" 2>/dev/null || true; rm -f "$f"; }
   done
-  # garante as portas livres (servidores de uma execução antiga)
+  # garante que não sobrou servidor de uma execução antiga (processo "next-server" órfão)
+  for pid in $(ps -eo pid,comm | awk '$2 == "next-server" {print $1}'); do kill "$pid" 2>/dev/null || true; done
   for port in 3000 54321; do
     for pid in $(lsof -t -iTCP:$port -sTCP:LISTEN 2>/dev/null); do kill "$pid" 2>/dev/null || true; done
   done
@@ -30,7 +31,7 @@ stop; sleep 1
 TEST_DATABASE_URL=$DATABASE_URL bash scripts/test-db-setup.sh >/dev/null
 [ "${SKIP_BUILD:-}" = "1" ] || npx next build >"$OUT/build.log" 2>&1 || { tail -30 "$OUT/build.log"; exit 1; }
 nohup node e2e/fake-supabase.mjs >"$OUT/fake.log" 2>&1 & echo $! >"$OUT/fake.pid"
-nohup npx next start -p 3000 >"$OUT/server.log" 2>&1 & echo $! >"$OUT/app.pid"
+nohup node_modules/.bin/next start -p 3000 >"$OUT/server.log" 2>&1 & echo $! >"$OUT/app.pid"
 for _ in $(seq 1 40); do curl -s -o /dev/null localhost:3000/login && break; sleep 1; done
 status=0
 node e2e/flow.cjs || status=$?

@@ -118,7 +118,7 @@ export function Checklists({ card, canEdit, onChanged }: Props) {
                   {canEdit && editing !== item.id && (
                     <button
                       type="button"
-                      className="cursor-pointer text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
+                      className="cursor-pointer rounded p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground"
                       onClick={() => setEditing(item.id)} aria-label={`Editar item ${item.text}`} disabled={busy}
                     >
                       <Pencil className="size-3.5" />
@@ -127,7 +127,7 @@ export function Checklists({ card, canEdit, onChanged }: Props) {
                   {canEdit && editing !== item.id && (
                     <button
                       type="button"
-                      className="cursor-pointer text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
+                      className="cursor-pointer rounded p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => act(deleteChecklistItemAction(card.id, item.id))} aria-label={`Remover item ${item.text}`} disabled={busy}
                     >
                       <Trash2 className="size-3.5" />
