@@ -103,10 +103,14 @@ bash e2e/run.sh --keep   # idem, deixando o site em http://localhost:3000 (pare 
 - Ao vivo: `useLiveBoard`/`useLiveNotifications` (`src/hooks/use-live-board.ts`) escutam INSERT em `card_events`
   e `notifications` (publicação `supabase_realtime`, migração `*_collaboration`); plano B: recarrega a cada 30 s.
   O Realtime só pode ser testado no site publicado (o simulador local não o imita).
+- Dashboard (só Admin): cálculos puros em `src/lib/dashboard/metrics.ts` (testados), busca/filtros em
+  `src/server/services/dashboard.ts`, tela em `src/app/(app)/dashboard`. Filtros ficam no endereço (?period=&boards=&area=&group=).
+  Cores dos gráficos validadas para daltonismo (`components/dashboard/charts.tsx`): não trocar sem revalidar.
 
 ## Estado atual
 - Etapa 0 concluída. **F1 concluída** (login e-mail/senha + Google opcional, quadros, acessos, áreas/labels, usuários,
   cards com checklist, arrastar e soltar, permissões + RLS). Revisão de UX/UI feita.
 - **F1.5 concluída** (aprovação com avisos no sistema).
 - **F2 concluída** (janela de data ao arrastar, confirmação de checklist ao finalizar, recorrência).
-- **F3 concluída** (comentários com @menção, anexos com capa, atualização ao vivo). Próxima: **F4** — dashboard.
+- **F3 concluída** (comentários com @menção, anexos com capa, atualização ao vivo).
+- **F4 concluída** (dashboard com filtros e as 7 métricas). Todas as fases da SPEC entregues.

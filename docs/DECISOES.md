@@ -126,3 +126,22 @@ Comentários continuam na F3 (ordem normal das fases).
 - **P32** Miniaturas de imagens; imagem escolhida como capa aparece no topo do card. SVG é tratado como arquivo (não vira capa).
 - **P33** Lixeira mantém arquivos; excluir quadro apaga os arquivos dele.
 - **P34** Plano B: sem conexão ao vivo, a tela se atualiza a cada 30 s.
+
+## Decisões da F4 — Dashboard (aprovadas em 02/11/2026)
+
+1. **Áreas juntadas pelo nome** entre quadros (sem diferenciar maiúsculas/acentos de digitação: "RH" = "rh").
+2. **Quadros arquivados entram** nos números; no filtro aparecem como "(arquivado)".
+3. **Retrabalho**: média de ciclos calculada só entre as tarefas que tiveram retrabalho.
+4. **Áreas demandantes**: barras horizontais, da maior para a menor.
+5. **Volume**: agrupamento automático (mês → semanas; trimestre/ano/intervalo longo → meses), com botão para trocar.
+
+- **P35** Volume: criadas por data de criação, concluídas por data de conclusão. No prazo, tempo de entrega,
+  gargalo e retrabalho: tarefas concluídas no período. Áreas: criadas no período. Carga por pessoa e
+  "atrasadas agora": foto do momento (respeitam quadro e área, não o período).
+- **P36** Semanas de segunda a domingo; meses do calendário; sempre no horário de São Paulo.
+- **P37** Lixeira fora; sem prazo fora do % no prazo.
+- **P38** Reaberta e finalizada de novo conta uma vez (última conclusão).
+- **P39** Carga: conta para cada responsável; "Sem responsável" aparece; NOVAS DEMANDAS fora.
+- **P40** Gargalo soma todas as passagens por APROVAÇÃO; mostra também quantas aguardam agora e a mais antiga.
+- **P41** Tempos como "2 d 5 h"; período padrão = mês atual.
+- **P42** Item "Dashboard" no menu, só para Administrador; funciona no celular.

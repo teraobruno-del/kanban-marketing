@@ -353,6 +353,30 @@ let PAGE;
   await page.getByRole("menuitem", { name: /Ana Lima comentou em “Briefing campanha”/ }).waitFor();
   log("criador da tarefa é avisado do comentário");
 
+  // ── F4: Dashboard ──
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: "Dashboard" }).click();
+  await page.getByRole("heading", { name: "Dashboard" }).waitFor();
+  await page.getByText("Concluídas no período", { exact: true }).waitFor();
+  const concluidas = await page.locator("section[aria-label='Resumo'] > div").first().locator("div.text-3xl").textContent();
+  if (Number(concluidas) < 3) throw new Error(`Esperava ao menos 3 concluídas, veio ${concluidas}`);
+  await page.getByRole("region", { name: "Carga por pessoa" }).getByText("Ana Lima").first().waitFor();
+  await page.getByRole("region", { name: "Áreas demandantes" }).getByText("Ver dados em tabela").click();
+  await page.getByRole("region", { name: "Áreas demandantes" }).getByRole("cell", { name: "RH" }).waitFor();
+  await page.screenshot({ path: SHOTS + "/dashboard.png", fullPage: true });
+  await page.selectOption("#f-period", "year");
+  await page.waitForURL(/period=year/);
+  await page.getByText(/01\/01\/\d{4} a 31\/12\/\d{4}/).waitFor();
+  log("Dashboard: números, carga por pessoa, áreas em tabela e filtro de período");
+
+  await logout(page);
+  await login(page, "ana@empresa.com", "provisoria1");
+  await page.waitForURL("http://localhost:3000/");
+  if (await page.getByRole("link", { name: "Dashboard" }).count()) throw new Error("Membro vê o Dashboard no menu");
+  await page.goto("http://localhost:3000/dashboard");
+  await page.getByText("Página não encontrada").waitFor();
+  log("Membro não acessa o Dashboard");
+
   await browser.close();
   console.log("TUDO OK");
 })().catch(async (e) => { if (PAGE) await PAGE.screenshot({ path: SHOTS + "/falha.png" }).catch(() => {}); console.error("FALHOU:", e.message.split("\n").slice(0, 4).join("\n")); process.exit(1); });
