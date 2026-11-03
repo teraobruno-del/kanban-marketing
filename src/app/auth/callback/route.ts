@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAuthAdmin } from "@/lib/supabase/auth-admin";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 /**
  * Retorno do login com Google. Só aceita e-mails já cadastrados pelo Administrador
@@ -10,16 +11,18 @@ import { supabaseAuthAdmin } from "@/lib/supabase/auth-admin";
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.clone();
   const code = url.searchParams.get("code");
+  const next = safeNextPath(url.searchParams.get("next"));
   const fail = (erro: string) => {
     url.pathname = "/login";
     url.search = `?erro=${erro}`;
     return NextResponse.redirect(url);
   };
-  if (!code) return fail("google");
+  const viaLink = next !== "/"; // link de e-mail (ex.: nova senha), não Google
+  if (!code) return fail(viaLink ? "link" : "google");
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error || !data.user) return fail("google");
+  if (error || !data.user) return fail(viaLink ? "link" : "google");
 
   const authUser = data.user;
   const email = authUser.email?.toLowerCase() ?? "";
@@ -38,7 +41,5 @@ export async function GET(request: NextRequest) {
     return fail("nao-cadastrado");
   }
 
-  url.pathname = "/";
-  url.search = "";
-  return NextResponse.redirect(url);
+  return NextResponse.redirect(new URL(next, url.origin));
 }

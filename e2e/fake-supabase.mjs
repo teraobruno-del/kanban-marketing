@@ -66,6 +66,7 @@ http.createServer(async (req, res) => {
   }
   if (p === "/auth/v1/user" && req.method === "GET") { const u = fromToken(req); return u && !u.banned ? send(200, userJson(u)) : send(401, { msg: "invalid" }); }
   if (p === "/auth/v1/user" && req.method === "PUT") { const u = fromToken(req); if (!u) return send(401, {}); const d = json(); if (d.password) u.password = d.password; return send(200, userJson(u)); }
+  if (p === "/auth/v1/recover" && req.method === "POST") { console.log("recover:", json().email); return send(200, {}); }
   if (p === "/auth/v1/logout") { res.writeHead(204, cors); return res.end(); }
   if (p === "/auth/v1/admin/users" && req.method === "POST") {
     const d = json();

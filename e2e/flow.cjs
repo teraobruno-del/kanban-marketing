@@ -426,6 +426,26 @@ let PAGE;
   await page.getByText("Página não encontrada").waitFor();
   log("Membro não acessa o Dashboard");
 
+  // ── Esqueci minha senha ──
+  await page.goto("http://localhost:3000/");
+  await logout(page);
+  await page.getByRole("link", { name: "Esqueci minha senha" }).click();
+  await page.waitForURL(/forgot-password/);
+  const ask = async (email) => {
+    await page.goto("http://localhost:3000/forgot-password");
+    await page.fill("#email", email);
+    await page.getByRole("button", { name: "Enviar link" }).click();
+    const msg = page.getByText(/Se este e-mail estiver cadastrado/);
+    await msg.waitFor();
+    return (await msg.textContent()).trim();
+  };
+  const known = await ask("ana@empresa.com");
+  const unknown = await ask("ninguem@empresa.com");
+  if (known !== unknown || !/Se este e-mail estiver cadastrado/.test(known)) throw new Error("Resposta deveria ser igual e neutra");
+  const fakeLog = require("fs").readFileSync(__dirname + "/out/fake.log", "utf8");
+  if (!fakeLog.includes("recover: ana@empresa.com") || fakeLog.includes("ninguem@empresa.com")) throw new Error("Envio de e-mail incorreto");
+  log("esqueci minha senha: resposta neutra; só envia para quem tem cadastro");
+
   await browser.close();
   console.log("TUDO OK");
 })().catch(async (e) => { if (PAGE) await PAGE.screenshot({ path: SHOTS + "/falha.png" }).catch(() => {}); console.error("FALHOU:", e.message.split("\n").slice(0, 4).join("\n")); process.exit(1); });

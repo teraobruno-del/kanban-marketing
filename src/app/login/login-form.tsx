@@ -35,6 +35,9 @@ export function LoginForm({ initialError, googleEnabled }: { initialError?: stri
           {pending ? "Entrando…" : "Entrar"}
         </Button>
       </form>
+      <p className="text-center text-sm">
+        <a href="/forgot-password" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Esqueci minha senha</a>
+      </p>
       {googleEnabled && (
         <>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">

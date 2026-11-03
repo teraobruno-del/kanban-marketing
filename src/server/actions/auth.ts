@@ -1,5 +1,6 @@
 "use server";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/db/prisma";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAuthAdmin } from "@/lib/supabase/auth-admin";
@@ -60,4 +61,30 @@ export async function changePasswordAction(_: FormState, formData: FormData): Pr
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: "Não foi possível trocar a senha. Tente uma senha diferente da atual." };
   return { success: "Senha alterada com sucesso." };
+}
+
+/** Endereço do site (ex.: https://kanban-marketing.vercel.app), a partir do pedido atual. */
+async function siteOrigin() {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+/**
+ * "Esqueci minha senha" (decisão pós-SPEC 5): envia o link pelo e-mail do Supabase.
+ * A resposta é sempre a mesma, para não revelar quem tem conta.
+ */
+export async function requestPasswordResetAction(_: FormState, formData: FormData): Promise<FormState> {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!email || !email.includes("@")) return { error: "Informe o seu e-mail." };
+  const neutral = { success: "Se este e-mail estiver cadastrado, enviamos um link para criar uma nova senha. Confira também a caixa de spam." };
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || !user.isActive) return neutral;
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${await siteOrigin()}/auth/callback?next=/reset-password`,
+  });
+  if (error) console.error("Falha ao enviar e-mail de nova senha:", error.message);
+  return neutral;
 }

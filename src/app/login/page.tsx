@@ -7,6 +7,7 @@ export const metadata = { title: "Entrar · Kanban Marketing" };
 const ERRORS: Record<string, string> = {
   "nao-cadastrado": "Este e-mail do Google não está cadastrado. Peça acesso ao Administrador.",
   "google": "Não foi possível entrar com o Google. Tente novamente.",
+  "link": "O link expirou, já foi usado ou foi aberto em outro navegador. Peça um novo em “Esqueci minha senha”.",
 };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {

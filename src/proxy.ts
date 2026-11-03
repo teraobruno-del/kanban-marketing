@@ -8,7 +8,7 @@ import { publicSupabaseConfig } from "@/lib/config/public";
  * É só uma checagem rápida — cada página e ação confere de novo o usuário e as permissões.
  * Se as variáveis da Vercel estiverem erradas, mostra uma página explicando o que corrigir.
  */
-const PUBLIC_PATHS = ["/login", "/auth/callback"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/forgot-password"];
 
 export async function proxy(request: NextRequest) {
   const problems = configProblems();
