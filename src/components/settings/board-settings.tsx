@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConfirm } from "@/components/ui/confirm";
 import { toast } from "@/components/ui/toaster";
 import { ColorPicker } from "./color-picker";
+import { TrashSection, type TrashItem } from "./trash-section";
 
 type Item = { id: string; name: string; color: string; isActive: boolean };
 type UserOption = { id: string; name: string; email: string; role: string };
@@ -29,6 +30,7 @@ interface Props {
   users: UserOption[];
   areas: Item[];
   labels: Item[];
+  trash: TrashItem[];
 }
 
 /** Executa uma ação e mostra o resultado numa mensagem rápida. */
@@ -46,7 +48,7 @@ function useAction() {
   return { pending, exec };
 }
 
-export function BoardSettings({ board, memberIds, users, areas, labels }: Props) {
+export function BoardSettings({ board, memberIds, users, areas, labels, trash }: Props) {
   return (
     <Tabs defaultValue="general">
       <TabsList className="max-w-full">
@@ -54,6 +56,7 @@ export function BoardSettings({ board, memberIds, users, areas, labels }: Props)
         <TabsTrigger value="access">Acesso <Badge variant="secondary" className="px-1.5">{memberIds.length}</Badge></TabsTrigger>
         <TabsTrigger value="areas">Áreas <Badge variant="secondary" className="px-1.5">{areas.length}</Badge></TabsTrigger>
         <TabsTrigger value="labels">Etiquetas <Badge variant="secondary" className="px-1.5">{labels.length}</Badge></TabsTrigger>
+        <TabsTrigger value="trash">Lixeira <Badge variant="secondary" className="px-1.5">{trash.length}</Badge></TabsTrigger>
       </TabsList>
       <TabsContent value="general"><GeneralSection board={board} /></TabsContent>
       <TabsContent value="access"><AccessSection boardId={board.id} memberIds={memberIds} users={users} /></TabsContent>
@@ -61,6 +64,7 @@ export function BoardSettings({ board, memberIds, users, areas, labels }: Props)
         <ItemsSection kind="area" boardId={board.id} items={areas} title="Áreas solicitantes"
           description="Quem pede as tarefas (ex.: RH, DIRETORIA). Toda tarefa precisa de uma área; ela alimenta o gráfico “Áreas demandantes”." />
       </TabsContent>
+      <TabsContent value="trash"><TrashSection items={trash} /></TabsContent>
       <TabsContent value="labels">
         <ItemsSection kind="label" boardId={board.id} items={labels} title="Etiquetas"
           description="Tipo de entrega (ex.: Rede Social, Vídeo, E-mail). Uma tarefa pode ter várias." />

@@ -20,7 +20,7 @@ import { askChecklistConfirmation, finishedToast } from "@/components/card/finis
 import { useConfirm } from "@/components/ui/confirm";
 import { DueDateDialog, type DueDateRequest } from "./due-date-dialog";
 import { columnLabel } from "@/lib/board/moves";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
@@ -207,6 +207,7 @@ export function BoardView({ view, initialCardId, initialToday, canEdit, isAdmin,
                 title={col.label}
                 count={columns[col.key].length}
                 state={!drop ? "idle" : drop.kind === "same" ? "origin" : drop.kind === "blocked" ? "reject" : "accept"}
+                footer={col.key === "DONE" ? <OlderDoneToggle showingAll={view.showingAllDone} olderCount={view.olderDoneCount} /> : null}
               >
                 {columns[col.key].map((card) => (
                   <DraggableCard
@@ -266,12 +267,32 @@ export function BoardView({ view, initialCardId, initialToday, canEdit, isAdmin,
   );
 }
 
+/** No fim de FINALIZADAS: mostrar/ocultar as concluídas há mais de 30 dias (decisão pós-SPEC 2). */
+function OlderDoneToggle({ showingAll, olderCount }: { showingAll: boolean; olderCount: number }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  if (!showingAll && olderCount === 0) return null;
+  const go = () => {
+    const next = new URLSearchParams(params.toString());
+    if (showingAll) next.delete("finalizadas"); else next.set("finalizadas", "todas");
+    next.delete("card");
+    const qs = next.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+  return (
+    <button type="button" onClick={go} className="w-full cursor-pointer rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-background hover:text-foreground">
+      {showingAll ? "Mostrar só os últimos 30 dias" : `Mostrar as mais antigas (${olderCount})`}
+    </button>
+  );
+}
+
 function Column({
-  ref, columnKey, emoji, title, count, state, children,
+  ref, columnKey, emoji, title, count, state, children, footer,
 }: {
   ref: (el: HTMLElement | null) => void;
   columnKey: ColumnKey; emoji: string; title: string; count: number;
-  state: "idle" | "accept" | "reject" | "origin"; children: React.ReactNode;
+  state: "idle" | "accept" | "reject" | "origin"; children: React.ReactNode; footer?: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: columnKey });
   const style = COLUMN_STYLE[columnKey];
@@ -304,6 +325,7 @@ function Column({
             {state === "accept" ? "Solte aqui" : style.empty}
           </p>
         )}
+        {footer}
       </div>
     </section>
   );

@@ -158,3 +158,17 @@ O dono pediu, nos cards, o campo **Observadores**, separado de Responsáveis.
   busca por nome ou e-mail). Etiquetas continuam como botões.
 - **P43** A recorrência copia os observadores (que ainda puderem ser) · **P44** card mostra 👁 com o número de
   observadores · **P45** incluir/retirar observadores fica no histórico.
+
+## Melhorias pós-SPEC (aprovadas em 03/11/2026)
+
+Login com Google não será usado (fica desligado: `NEXT_PUBLIC_GOOGLE_LOGIN=false`).
+
+1. **Lixeira** numa aba das Configurações de cada quadro (só Administrador): **Restaurar** (volta para onde estava)
+   e **Excluir definitivamente** (com confirmação; apaga também os arquivos e o histórico da tarefa).
+2. **FINALIZADAS** mostra as concluídas nos **últimos 30 dias**; botão "Mostrar as mais antigas (N)". O Dashboard conta todas.
+3. **Filtros no quadro**: busca por título, "Minhas tarefas" (sou responsável ou observador), responsável, área e etiqueta.
+   Ficam no endereço da página (link compartilhável); abrir o quadro pelo menu volta sem filtro.
+4. **P46** Administrador edita o e-mail do usuário; o login passa a ser o novo e-mail (sem confirmação); recusa e-mail em uso.
+5. **"Esqueci minha senha"** com o envio de e-mails do próprio Supabase (gratuito, poucos e-mails por hora).
+   Resposta sempre neutra ("se o e-mail estiver cadastrado…"), para não revelar quem tem conta.
+6. **Ajuda** dentro do sistema, com imagens, organizada por papel.

@@ -26,6 +26,7 @@ const cardListInclude = {
   requesterArea: { select: { id: true, name: true, color: true } },
   labels: { include: { label: { select: { id: true, name: true, color: true } } } },
   assignees: { include: { user: { select: { id: true, name: true } } } },
+  observers: { select: { userId: true } },
   checklists: { select: { items: { select: { isDone: true } } } },
   coverAttachment: { select: { storagePath: true } },
   _count: { select: { comments: { where: { deletedAt: null } }, attachments: true, observers: true } },
@@ -37,20 +38,34 @@ export interface CardDeps {
 }
 
 /** Tudo o que a tela do quadro precisa. */
-export async function getBoardView(db: Db, actor: Actor, boardId: string, deps: CardDeps = {}) {
+/** FINALIZADAS mostra só as concluídas nos últimos N dias (decisão pós-SPEC 2). */
+export const DONE_RECENT_DAYS = 30;
+
+export async function getBoardView(
+  db: Db, actor: Actor, boardId: string, deps: CardDeps = {}, opts: { allDone?: boolean; now?: Date } = {},
+) {
   const { board, access } = await loadBoardAccess(db, actor, boardId);
-  const [cards, areas, labels, assignableUsers, mentionableUsers, observableUsers] = await Promise.all([
-    db.card.findMany({ where: { boardId, deletedAt: null }, include: cardListInclude }),
+  const now = opts.now ?? new Date();
+  const doneCutoff = new Date(now.getTime() - DONE_RECENT_DAYS * 86_400_000);
+  const oldDone = { boardId, deletedAt: null, stage: "DONE" as const, completedAt: { lt: doneCutoff } };
+  const visible: Prisma.CardWhereInput = opts.allDone
+    ? { boardId, deletedAt: null }
+    : { boardId, deletedAt: null, NOT: { stage: "DONE", completedAt: { lt: doneCutoff } } };
+  const [cards, areas, labels, assignableUsers, mentionableUsers, observableUsers, olderDoneCount] = await Promise.all([
+    db.card.findMany({ where: visible, include: cardListInclude }),
     db.requesterArea.findMany({ where: { boardId }, orderBy: { name: "asc" } }),
     db.label.findMany({ where: { boardId }, orderBy: { name: "asc" } }),
     listAssignableUsers(db, boardId),
     listMentionableUsers(db, boardId),
     listObservableUsers(db, boardId),
+    db.card.count({ where: oldDone }),
   ]);
   const coverPaths = cards.flatMap((c) => (c.coverAttachment ? [c.coverAttachment.storagePath] : []));
   const coverUrls = deps.storage && coverPaths.length ? await deps.storage.createDownloadUrls(coverPaths, 60 * 60) : {};
   return {
     board: { id: board.id, name: board.name, archived: board.archivedAt !== null },
+    olderDoneCount,
+    showingAllDone: opts.allDone === true,
     access,
     cards: cards.map((c) => {
       const items = c.checklists.flatMap((cl) => cl.items);
@@ -64,6 +79,7 @@ export async function getBoardView(db: Db, actor: Actor, boardId: string, deps: 
         area: c.requesterArea,
         labels: c.labels.map((l) => l.label),
         assignees: c.assignees.map((a) => a.user),
+        observerIds: c.observers.map((o) => o.userId),
         checklistTotal: items.length,
         checklistDone: items.filter((i) => i.isDone).length,
         hasDescription: c.description.trim().length > 0,

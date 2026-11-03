@@ -10,13 +10,13 @@ import { BoardView } from "@/components/board/board-view";
 
 export default async function BoardPage({
   params, searchParams,
-}: { params: Promise<{ boardId: string }>; searchParams: Promise<{ card?: string }> }) {
+}: { params: Promise<{ boardId: string }>; searchParams: Promise<{ card?: string; finalizadas?: string }> }) {
   const { boardId } = await params;
-  const { card } = await searchParams;
+  const { card, finalizadas } = await searchParams;
   const user = await requireUser();
   let view;
   try {
-    view = await getBoardView(prisma, user, boardId, { storage: supabaseStorage() });
+    view = await getBoardView(prisma, user, boardId, { storage: supabaseStorage() }, { allDone: finalizadas === "todas" });
   } catch (e) {
     if (e instanceof AppError) notFound();
     throw e;

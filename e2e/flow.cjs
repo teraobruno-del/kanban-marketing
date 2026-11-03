@@ -362,8 +362,23 @@ let PAGE;
   await page.getByRole("menuitem", { name: /Ana Lima comentou em “Briefing campanha”/ }).waitFor();
   log("criador da tarefa é avisado do comentário");
 
-  // ── F4: Dashboard ──
+  // ── Lixeira: excluir, encontrar e restaurar ──
   await page.keyboard.press("Escape");
+  await page.goto(boardUrl);
+  await newCard("Rascunho descartável", "RH", null);
+  await dlg().getByRole("button", { name: "Excluir tarefa" }).click();
+  await page.getByRole("dialog").filter({ hasText: "Excluir esta tarefa?" }).getByRole("button", { name: "Excluir" }).click();
+  await page.getByText("Tarefa excluída.").waitFor();
+  await page.goto(boardUrl + "/settings");
+  await page.getByRole("tab", { name: /Lixeira/ }).click();
+  await page.getByText("Rascunho descartável").waitFor();
+  await page.getByRole("button", { name: "Restaurar" }).click();
+  await page.getByText("voltou para o quadro").waitFor();
+  await page.goto(boardUrl);
+  await column(page, "NOVAS DEMANDAS").getByText("Rascunho descartável").waitFor();
+  log("lixeira: excluir, encontrar na aba Lixeira e restaurar");
+
+  // ── F4: Dashboard ──
   await page.getByRole("link", { name: "Dashboard" }).click();
   await page.getByRole("heading", { name: "Dashboard" }).waitFor();
   await page.getByText("Concluídas no período", { exact: true }).waitFor();

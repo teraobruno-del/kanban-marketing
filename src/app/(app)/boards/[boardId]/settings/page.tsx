@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { listActiveUsers } from "@/server/services/users";
+import { listTrash } from "@/server/services/trash";
 import { BoardSettings } from "@/components/settings/board-settings";
 
 export default async function BoardSettingsPage({ params }: { params: Promise<{ boardId: string }> }) {
@@ -19,7 +20,7 @@ export default async function BoardSettingsPage({ params }: { params: Promise<{ 
     },
   });
   if (!board) notFound();
-  const users = await listActiveUsers(prisma, user);
+  const [users, trash] = await Promise.all([listActiveUsers(prisma, user), listTrash(prisma, user, board.id)]);
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
@@ -34,6 +35,7 @@ export default async function BoardSettingsPage({ params }: { params: Promise<{ 
         users={users}
         areas={board.areas.map(({ id, name, color, isActive }) => ({ id, name, color, isActive }))}
         labels={board.labels.map(({ id, name, color, isActive }) => ({ id, name, color, isActive }))}
+        trash={trash}
       />
     </main>
   );
