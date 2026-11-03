@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Users, ChevronDown, LogOut, UserRound, BarChart3 } from "lucide-react";
+import { LayoutGrid, Users, ChevronDown, LogOut, UserRound, BarChart3, CircleHelp } from "lucide-react";
 import { logoutAction } from "@/server/actions/auth";
 import { ROLE_LABELS, type Role } from "@/lib/auth/permissions";
 import { initials } from "@/lib/format";
@@ -27,6 +27,7 @@ export function AppHeader({ user, inbox }: Props) {
           { href: "/admin/users", label: "Usuários", icon: Users, active: pathname.startsWith("/admin") },
         ]
       : []),
+    { href: "/help", label: "Ajuda", icon: CircleHelp, active: pathname.startsWith("/help") },
   ];
 
   return (

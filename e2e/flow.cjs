@@ -424,6 +424,11 @@ let PAGE;
   log("Minhas tarefas (responsável ou observadora)");
   await page.goto("http://localhost:3000/dashboard");
   await page.getByText("Página não encontrada").waitFor();
+  await page.getByRole("link", { name: "Ajuda" }).click();
+  await page.getByRole("heading", { name: "Ajuda", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Aprovação" }).waitFor();
+  if (await page.getByRole("heading", { name: "Administração" }).count()) throw new Error("Membro não deveria ver a ajuda de Administração");
+  log("Ajuda: Membro vê as partes do seu papel");
   log("Membro não acessa o Dashboard");
 
   // ── Esqueci minha senha ──

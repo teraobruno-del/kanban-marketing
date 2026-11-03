@@ -66,6 +66,7 @@ npm run test:db:setup    # cria o banco local de testes (PostgreSQL local, usuá
 npm run test:integration # todos os testes, incluindo os com banco (serviços + RLS)
 bash e2e/run.sh          # teste completo no navegador (Playwright) com "Supabase de mentirinha" (Auth + Storage)
 bash e2e/run.sh --keep   # idem, deixando o site em http://localhost:3000 (pare com: bash e2e/run.sh --stop)
+node e2e/help-shots.cjs  # (com o site de teste ligado) refaz as imagens da Ajuda em public/ajuda/
 ```
 - Vercel usa `npm run vercel-build` (gera Prisma Client, aplica migrações, monta o site).
 - Variáveis de ambiente: ver `.env.example`.
@@ -109,6 +110,12 @@ bash e2e/run.sh --keep   # idem, deixando o site em http://localhost:3000 (pare 
 - Dashboard (só Admin): cálculos puros em `src/lib/dashboard/metrics.ts` (testados), busca/filtros em
   `src/server/services/dashboard.ts`, tela em `src/app/(app)/dashboard`. Filtros ficam no endereço (?period=&boards=&area=&group=).
   Cores dos gráficos validadas para daltonismo (`components/dashboard/charts.tsx`): não trocar sem revalidar.
+- Lixeira: `src/server/services/trash.ts` (restaurar / excluir definitivamente) — aba nas Configurações do quadro.
+- FINALIZADAS mostra só as concluídas nos últimos `DONE_RECENT_DAYS` (30) dias; `?finalizadas=todas` mostra todas.
+- Filtros do quadro: `src/lib/board/filters.ts` (?q=&mine=1&assignee=&area=&label=), aplicados no navegador.
+- "Esqueci minha senha": `/forgot-password` → e-mail do Supabase → `/auth/callback?next=/reset-password`
+  (`safeNextPath` só aceita páginas do próprio site). Requer Site URL/Redirect URLs no Supabase (PUBLICAR.md, Parte 6).
+- Ajuda: `src/app/(app)/help/page.tsx` (seções por papel; imagens em `public/ajuda/`). Atualize ao mudar telas.
 
 ## Estado atual
 - Etapa 0 concluída. **F1 concluída** (login e-mail/senha + Google opcional, quadros, acessos, áreas/labels, usuários,
@@ -117,3 +124,5 @@ bash e2e/run.sh --keep   # idem, deixando o site em http://localhost:3000 (pare 
 - **F2 concluída** (janela de data ao arrastar, confirmação de checklist ao finalizar, recorrência).
 - **F3 concluída** (comentários com @menção, anexos com capa, atualização ao vivo).
 - **F4 concluída** (dashboard com filtros e as 7 métricas). Todas as fases da SPEC entregues.
+- Pós-SPEC: observadores na tarefa, lixeira, FINALIZADAS 30 dias, filtros, editar e-mail, esqueci a senha, Ajuda.
+  Login com Google desligado (não será usado).
