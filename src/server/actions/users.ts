@@ -14,9 +14,9 @@ export async function createUserAction(input: { name: string; email: string; rol
   });
 }
 
-export async function updateUserAction(userId: string, input: { name: string; role: string }) {
+export async function updateUserAction(userId: string, input: { name: string; role: string; email?: string }) {
   return run(async (u) => {
-    await svc.updateUser(prisma, u, userId, input);
+    await svc.updateUser(prisma, u, userId, input, supabaseAuthAdmin());
     refresh();
   });
 }

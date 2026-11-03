@@ -34,6 +34,7 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   name: name("Nome"),
   role: roleSchema,
+  email: z.string().trim().toLowerCase().pipe(z.email("E-mail inválido.")).optional(),
 });
 
 // ── Cards ──

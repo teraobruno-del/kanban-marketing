@@ -10,6 +10,8 @@ import type { BoardView as BoardViewData, BoardCard } from "@/server/services/ca
 import { BOARD_COLUMNS, type ColumnKey } from "@/lib/board/columns";
 import { planDrop, type DropPlan } from "@/lib/board/moves";
 import { groupCardsByColumn } from "@/lib/board/sort";
+import { filterCards, parseBoardFilters } from "@/lib/board/filters";
+import { FilterBar } from "./filter-bar";
 import type { DateOnly } from "@/lib/dates/day";
 import { useToday } from "@/hooks/use-today";
 import { useLiveBoard } from "@/hooks/use-live-board";
@@ -57,7 +59,10 @@ export function BoardView({ view, initialCardId, initialToday, canEdit, isAdmin,
   const [, startTransition] = useTransition();
   const columnRefs = useRef<Partial<Record<ColumnKey, HTMLElement | null>>>({});
 
-  const columns = useMemo(() => groupCardsByColumn(cards, today), [cards, today]);
+  const searchParams = useSearchParams();
+  const filters = useMemo(() => parseBoardFilters(searchParams), [searchParams]);
+  const filtered = useMemo(() => filterCards(cards, filters, currentUserId), [cards, filters, currentUserId]);
+  const columns = useMemo(() => groupCardsByColumn(filtered, today), [filtered, today]);
   const activeCard = activeId ? cards.find((c) => c.id === activeId) ?? null : null;
   const noActiveAreas = view.areas.every((a) => !a.isActive);
   // Pode aprovar/reprovar este card? (quem criou ou Administrador — SPEC §6.E)
@@ -156,6 +161,8 @@ export function BoardView({ view, initialCardId, initialToday, canEdit, isAdmin,
             )}
           </div>
         </div>
+
+        <FilterBar view={view} filters={filters} shown={filtered.length} total={cards.length} />
 
         {/* Atalhos para as 8 colunas — nenhuma etapa fica escondida */}
         <nav className="-mx-1 mt-2 flex gap-1 overflow-x-auto pb-2" aria-label="Ir para a coluna">

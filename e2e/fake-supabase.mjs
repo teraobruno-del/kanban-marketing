@@ -80,7 +80,7 @@ http.createServer(async (req, res) => {
     const u = users.get(m[1]);
     if (!u) return send(404, { msg: "not found" });
     if (req.method === "DELETE") { users.delete(u.id); return send(200, {}); }
-    if (req.method === "PUT") { const d = json(); if (d.password) u.password = d.password; if (d.ban_duration) u.banned = d.ban_duration !== "none"; return send(200, userJson(u)); }
+    if (req.method === "PUT") { const d = json(); if (d.password) u.password = d.password; if (d.email) u.email = d.email; if (d.ban_duration) u.banned = d.ban_duration !== "none"; return send(200, userJson(u)); }
   }
 
   // ── Storage ──

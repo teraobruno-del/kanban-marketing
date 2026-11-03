@@ -145,7 +145,7 @@ export function UsersAdmin({ users, currentUserId }: { users: U[]; currentUserId
             <UserForm
               title={`Editar ${dialog.user.name}`}
               description={dialog.user.email}
-              initial={{ name: dialog.user.name, role: dialog.user.role as Role }}
+              initial={{ name: dialog.user.name, role: dialog.user.role as Role, email: dialog.user.email }}
               onSubmit={async (v) => {
                 const r = await updateUserAction(dialog.user.id, v);
                 if (r.ok) { setDialog(null); toast.success("Alterações salvas."); }
@@ -170,10 +170,10 @@ export function UsersAdmin({ users, currentUserId }: { users: U[]; currentUserId
 }
 
 function UserForm({ title, description, initial, withEmailAndPassword, onSubmit }: {
-  title: string; description: string; initial?: { name: string; role: Role }; withEmailAndPassword?: boolean;
+  title: string; description: string; initial?: { name: string; role: Role; email?: string }; withEmailAndPassword?: boolean;
   onSubmit: (v: { name: string; email: string; role: Role; password: string }) => Promise<string | undefined>;
 }) {
-  const [v, setV] = useState({ name: initial?.name ?? "", email: "", role: initial?.role ?? ("MEMBER" as Role), password: "" });
+  const [v, setV] = useState({ name: initial?.name ?? "", email: initial?.email ?? "", role: initial?.role ?? ("MEMBER" as Role), password: "" });
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
   return (
@@ -181,9 +181,13 @@ function UserForm({ title, description, initial, withEmailAndPassword, onSubmit 
       <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
       {error && <Alert variant="destructive">{error}</Alert>}
       <div className="space-y-2"><Label htmlFor="u-name">Nome</Label><Input id="u-name" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} required /></div>
-      {withEmailAndPassword && (
-        <div className="space-y-2"><Label htmlFor="u-email">E-mail</Label><Input id="u-email" type="email" value={v.email} onChange={(e) => setV({ ...v, email: e.target.value })} required /></div>
-      )}
+      <div className="space-y-2">
+        <Label htmlFor="u-email">E-mail</Label>
+        <Input id="u-email" type="email" value={v.email} onChange={(e) => setV({ ...v, email: e.target.value })} required />
+        {!withEmailAndPassword && initial?.email && v.email.trim().toLowerCase() !== initial.email && (
+          <p className="text-xs text-amber-700">A pessoa passará a entrar com este novo e-mail.</p>
+        )}
+      </div>
       <div className="space-y-2">
         <Label htmlFor="u-role">Papel</Label>
         <NativeSelect id="u-role" value={v.role} onChange={(e) => setV({ ...v, role: e.target.value as Role })}>

@@ -33,6 +33,9 @@ export function supabaseAuthAdmin(): AuthAdminPort {
     async setPassword(id, password) {
       check((await admin.updateUserById(id, { password })).error);
     },
+    async setEmail(id, email) {
+      check((await admin.updateUserById(id, { email, email_confirm: true })).error);
+    },
     async setBanned(id, banned) {
       check((await admin.updateUserById(id, { ban_duration: banned ? "876000h" : "none" })).error);
     },

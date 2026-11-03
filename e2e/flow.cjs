@@ -378,6 +378,25 @@ let PAGE;
   await column(page, "NOVAS DEMANDAS").getByText("Rascunho descartável").waitFor();
   log("lixeira: excluir, encontrar na aba Lixeira e restaurar");
 
+  // ── Filtros no quadro ──
+  await page.getByRole("searchbox", { name: "Buscar pelo título" }).fill("rascunho");
+  await page.waitForURL(/q=rascunho/);
+  await page.getByText(/Mostrando 1 de \d+ tarefas/).waitFor();
+  if (await page.locator("section").getByText("Post Instagram", { exact: true }).count()) throw new Error("Filtro não escondeu as outras tarefas");
+  await page.getByRole("button", { name: "Limpar filtros" }).click();
+  await page.locator("section").getByText("Post Instagram", { exact: true }).waitFor();
+  log("filtros: busca pelo título e limpar filtros");
+
+  // ── Editar e-mail de usuário ──
+  await page.goto("http://localhost:3000/admin/users");
+  await page.getByRole("button", { name: "Ações para Otto Reis" }).click();
+  await page.getByRole("menuitem", { name: /Editar/ }).click();
+  await page.fill("#u-email", "otto.reis@empresa.com");
+  await page.getByText("A pessoa passará a entrar com este novo e-mail.").waitFor();
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await page.locator("table").getByText("otto.reis@empresa.com").waitFor();
+  log("editar e-mail de usuário");
+
   // ── F4: Dashboard ──
   await page.getByRole("link", { name: "Dashboard" }).click();
   await page.getByRole("heading", { name: "Dashboard" }).waitFor();
@@ -397,6 +416,12 @@ let PAGE;
   await login(page, "ana@empresa.com", "provisoria1");
   await page.waitForURL("http://localhost:3000/");
   if (await page.getByRole("link", { name: "Dashboard" }).count()) throw new Error("Membro vê o Dashboard no menu");
+  await page.getByText("Marketing Institucional").click();
+  await page.getByRole("button", { name: "Minhas tarefas" }).click();
+  await page.waitForURL(/mine=1/);
+  await page.locator("section").getByText("Post Instagram", { exact: true }).waitFor();
+  if (await page.locator("section").getByText("Rascunho descartável", { exact: true }).count()) throw new Error("Minhas tarefas mostrou tarefa de outra pessoa");
+  log("Minhas tarefas (responsável ou observadora)");
   await page.goto("http://localhost:3000/dashboard");
   await page.getByText("Página não encontrada").waitFor();
   log("Membro não acessa o Dashboard");

@@ -14,6 +14,7 @@ export interface AuthAdminPort {
   deleteUser(id: string): Promise<void>;
   setPassword(id: string, password: string): Promise<void>;
   setBanned(id: string, banned: boolean): Promise<void>;
+  setEmail(id: string, email: string): Promise<void>;
 }
 
 function requireAdmin(actor: Actor) {
@@ -64,7 +65,8 @@ export async function createUser(db: Db, auth: AuthAdminPort, actor: Actor, raw:
   }
 }
 
-export async function updateUser(db: Db, actor: Actor, userId: string, raw: unknown) {
+/** Editar nome, papel e e-mail (P46: o login passa a ser o novo e-mail). */
+export async function updateUser(db: Db, actor: Actor, userId: string, raw: unknown, auth?: AuthAdminPort) {
   requireAdmin(actor);
   const input = parse(updateUserSchema, raw);
   const user = await db.user.findUnique({ where: { id: userId } });
@@ -72,7 +74,19 @@ export async function updateUser(db: Db, actor: Actor, userId: string, raw: unkn
   if (user.id === actor.id && input.role !== "ADMIN") {
     throw invalid("Você não pode remover o seu próprio papel de Administrador.");
   }
-  await db.user.update({ where: { id: userId }, data: input });
+  const emailChanged = input.email !== undefined && input.email !== user.email;
+  if (emailChanged) {
+    if (!auth) throw invalid("Não foi possível alterar o e-mail agora.");
+    const taken = await db.user.findUnique({ where: { email: input.email } });
+    if (taken) throw invalid("Este e-mail já está em uso por outro usuário.");
+    const authOwner = await auth.findUserIdByEmail(input.email!);
+    if (authOwner && authOwner !== userId) throw invalid("Este e-mail já tem uma conta de login. Escolha outro.");
+    await auth.setEmail(userId, input.email!);
+  }
+  await db.user.update({
+    where: { id: userId },
+    data: { name: input.name, role: input.role, ...(emailChanged ? { email: input.email } : {}) },
+  });
 }
 
 /** "Excluir" = desativar, preservando o histórico (SPEC §7). Também bloqueia o login. */

@@ -316,6 +316,7 @@ describe.skipIf(!TEST_DATABASE_URL)("Serviços com banco de dados (integração)
         async deleteUser(id) { for (const [k, v] of accounts) if (v === id) accounts.delete(k); },
         async setPassword() {},
         async setBanned(id, b) { if (b) banned.add(id); else banned.delete(id); },
+        async setEmail(id, email) { for (const [k, v] of accounts) if (v === id) accounts.delete(k); accounts.set(email, id); },
       };
       return { port, accounts, banned };
     };
@@ -335,6 +336,15 @@ describe.skipIf(!TEST_DATABASE_URL)("Serviços com banco de dados (integração)
       const u = await users.createUser(db, auth.port, s.admin, { name: "Léo", email: "leo@empresa.com", role: "MEMBER", password: "provisoria1" });
       expect(u.id).toBe(id);
       expect(auth.accounts.size).toBe(1);
+    });
+
+    it("editar e-mail troca o login; recusa e-mail em uso", async () => {
+      const auth = fakeAuth();
+      const u = await users.createUser(db, auth.port, s.admin, { name: "Bia", email: "bia@empresa.com", role: "MEMBER", password: "provisoria1" });
+      await users.updateUser(db, s.admin, u.id, { name: "Bia", role: "MEMBER", email: " BIA.SOUZA@empresa.com " }, auth.port);
+      expect((await db.user.findUniqueOrThrow({ where: { id: u.id } })).email).toBe("bia.souza@empresa.com");
+      expect(auth.accounts.get("bia.souza@empresa.com")).toBe(u.id);
+      await expectCode(users.updateUser(db, s.admin, u.id, { name: "Bia", role: "MEMBER", email: "membro@teste.com" }, auth.port), "INVALID");
     });
 
     it("desativar bloqueia o login e preserva o histórico; não pode desativar a si mesmo", async () => {
