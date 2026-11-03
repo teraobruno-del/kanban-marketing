@@ -1,5 +1,5 @@
 "use client";
-import { CheckSquare, AlignLeft, CalendarDays, CheckCircle2, AlertTriangle, Hourglass, Repeat, MessageSquare, Paperclip } from "lucide-react";
+import { CheckSquare, AlignLeft, CalendarDays, CheckCircle2, AlertTriangle, Hourglass, Repeat, MessageSquare, Paperclip, Eye } from "lucide-react";
 import type { BoardCard } from "@/server/services/cards";
 import type { DateOnly } from "@/lib/dates/day";
 import { describeDue, initials } from "@/lib/format";
@@ -74,6 +74,9 @@ export function CardTile({ card, today, dragging, awaitingMe }: { card: BoardCar
         {card.hasDescription && <AlignLeft className="size-3.5" aria-label="Tem descrição" />}
         {card.commentCount > 0 && (
           <span className="flex items-center gap-1" title="Comentários"><MessageSquare className="size-3.5" /> {card.commentCount}</span>
+        )}
+        {card.observerCount > 0 && (
+          <span className="flex items-center gap-1" title="Observadores"><Eye className="size-3.5" /> {card.observerCount}</span>
         )}
         {card.attachmentCount > 0 && (
           <span className="flex items-center gap-1" title="Anexos"><Paperclip className="size-3.5" /> {card.attachmentCount}</span>

@@ -145,3 +145,16 @@ Comentários continuam na F3 (ordem normal das fases).
 - **P40** Gargalo soma todas as passagens por APROVAÇÃO; mostra também quantas aguardam agora e a mais antiga.
 - **P41** Tempos como "2 d 5 h"; período padrão = mês atual.
 - **P42** Item "Dashboard" no menu, só para Administrador; funciona no celular.
+
+## Observadores da tarefa (aprovado em 03/11/2026)
+
+O dono pediu, nos cards, o campo **Observadores**, separado de Responsáveis.
+
+- Observadores da tarefa são os **usuários com papel Observador** (com acesso ao quadro), marcados nas tarefas que vão acompanhar.
+  Responsáveis continuam sendo Administradores e Membros (decisão 7A) — por isso ninguém fica nas duas listas.
+- **Quem inclui/retira observadores**: quem criou a tarefa e os Administradores.
+- **Avisos**: os mesmos dos responsáveis (comentários, aprovada/reprovada, nova tarefa da série).
+- Responsáveis e Observadores escolhidos numa **lista compacta com busca** (filtra ao digitar, ignora acentos,
+  busca por nome ou e-mail). Etiquetas continuam como botões.
+- **P43** A recorrência copia os observadores (que ainda puderem ser) · **P44** card mostra 👁 com o número de
+  observadores · **P45** incluir/retirar observadores fica no histórico.

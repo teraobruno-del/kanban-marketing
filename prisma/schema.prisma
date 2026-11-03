@@ -51,6 +51,7 @@ enum CardEventType {
   DUE_DATE_CHANGED
   UPDATED // título, descrição, área
   ASSIGNEES_CHANGED
+  OBSERVERS_CHANGED // observadores da tarefa incluídos/retirados
   LABELS_CHANGED
   CHECKLIST_CHANGED
   ATTACHMENT_ADDED
@@ -101,6 +102,7 @@ model User {
   cardsCreated       Card[]           @relation("CardCreatedBy")
   cardsDeleted       Card[]           @relation("CardDeletedBy")
   assignments        CardAssignee[]
+  observing          CardObserver[]
   checklistItemsDone ChecklistItem[]
   attachments        Attachment[]
   comments           Comment[]
@@ -233,6 +235,7 @@ model Card {
   recurrenceParent Card?          @relation("RecurrenceSeries", fields: [recurrenceParentId], references: [id], onDelete: SetNull)
   recurrenceChild  Card?          @relation("RecurrenceSeries")
   assignees        CardAssignee[]
+  observers        CardObserver[]
   labels           CardLabel[]
   checklists       Checklist[]
   attachments      Attachment[]   @relation("CardAttachments")
@@ -259,6 +262,20 @@ model CardAssignee {
   @@id([cardId, userId])
   @@index([userId])
   @@map("card_assignees")
+}
+
+/// Observadores da tarefa: usuários com papel Observador que acompanham o card (recebem os avisos).
+model CardObserver {
+  cardId  String   @map("card_id") @db.Uuid
+  userId  String   @map("user_id") @db.Uuid
+  addedAt DateTime @default(now()) @map("added_at") @db.Timestamptz(3)
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@id([cardId, userId])
+  @@index([userId])
+  @@map("card_observers")
 }
 
 model CardLabel {

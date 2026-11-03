@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import type { BoardView } from "@/server/services/cards";
 import type { CardInput } from "@/lib/validation/schemas";
 import { readableTextColor } from "@/lib/colors";
-import { describeRecurrence, initials, type Frequency } from "@/lib/format";
+import { describeRecurrence, type Frequency } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./markdown";
+import { PeoplePicker } from "./people-picker";
 
 export interface CardFormValues {
   title: string;
@@ -21,16 +22,19 @@ export interface CardFormValues {
   requesterAreaId: string;
   labelIds: string[];
   assigneeIds: string[];
+  observerIds: string[];
   recurrence: { frequency: Frequency | null; endDate: string | null };
 }
 
 interface Props {
-  board: Pick<BoardView, "areas" | "labels" | "assignableUsers">;
+  board: Pick<BoardView, "areas" | "labels" | "assignableUsers" | "observableUsers">;
   initial: CardFormValues;
   /** Pode editar os campos (Admin/Membro). */
   canEdit: boolean;
   /** Pode alterar o prazo (Admin, ou Membro que criou o card). */
   canChangeDueDate: boolean;
+  /** Pode incluir/retirar observadores (quem criou a tarefa ou Admin). */
+  canManageObservers: boolean;
   submitLabel: string;
   /** Mostra o botão de salvar mesmo sem alterações (criação). */
   alwaysShowSubmit?: boolean;
@@ -46,7 +50,7 @@ interface Props {
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
 
 export function CardForm(props: Props) {
-  const { board, initial, canEdit, canChangeDueDate, submitLabel, alwaysShowSubmit, onSubmit, onDirtyChange } = props;
+  const { board, initial, canEdit, canChangeDueDate, canManageObservers, submitLabel, alwaysShowSubmit, onSubmit, onDirtyChange } = props;
   const [v, setV] = useState<CardFormValues>(initial);
   const [tab, setTab] = useState<"write" | "preview">(initial.description ? "preview" : "write");
   const [error, setError] = useState<string>();
@@ -59,6 +63,7 @@ export function CardForm(props: Props) {
     v.requesterAreaId !== initial.requesterAreaId ||
     !sameSet(v.labelIds, initial.labelIds) ||
     !sameSet(v.assigneeIds, initial.assigneeIds) ||
+    !sameSet(v.observerIds, initial.observerIds) ||
     v.recurrence.frequency !== initial.recurrence.frequency ||
     (v.recurrence.frequency !== null && (v.recurrence.endDate ?? null) !== (initial.recurrence.endDate ?? null));
 
@@ -71,7 +76,7 @@ export function CardForm(props: Props) {
     ...board.assignableUsers,
     ...initial.assigneeIds
       .filter((id) => !board.assignableUsers.some((u) => u.id === id))
-      .map((id) => ({ id, name: "(sem acesso)", role: "MEMBER" })),
+      .map((id) => ({ id, name: "(sem acesso)", email: "", role: "MEMBER" })),
   ];
   const toggle = (key: "labelIds" | "assigneeIds", id: string) =>
     setV((s) => ({ ...s, [key]: s[key].includes(id) ? s[key].filter((x) => x !== id) : [...s[key], id] }));
@@ -235,32 +240,22 @@ export function CardForm(props: Props) {
             )}
           </fieldset>
 
-          <fieldset className="space-y-1.5">
-            <legend className="mb-1.5 text-xs font-medium text-muted-foreground">Responsáveis</legend>
-            <div className="flex flex-col gap-1">
-              {users.map((u) => {
-                const on = v.assigneeIds.includes(u.id);
-                if (!canEdit && !on) return null;
-                return (
-                  <button
-                    key={u.id} type="button" disabled={!canEdit} onClick={() => toggle("assigneeIds", u.id)} aria-pressed={on}
-                    className={cn(
-                      "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition disabled:cursor-default",
-                      on ? "bg-secondary font-medium" : "text-muted-foreground hover:bg-accent",
-                    )}
-                  >
-                    <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold",
-                      on ? "bg-slate-700 text-white" : "bg-muted")}>
-                      {initials(u.name)}
-                    </span>
-                    <span className="truncate">{u.name}</span>
-                    {on && <span className="ml-auto text-xs">✓</span>}
-                  </button>
-                );
-              })}
-              {!canEdit && v.assigneeIds.length === 0 && <p className="text-xs text-muted-foreground">Ninguém.</p>}
-            </div>
-          </fieldset>
+          <PeoplePicker
+            id="assignee-picker" label="Responsáveis" people={users} selected={v.assigneeIds} disabled={!canEdit}
+            onChange={(ids) => setV({ ...v, assigneeIds: ids })}
+            emptyText="Nenhum Administrador ou Membro com acesso"
+          />
+
+          <div className="space-y-1">
+            <PeoplePicker
+              id="observer-picker" label="Observadores" people={board.observableUsers} selected={v.observerIds}
+              disabled={!canManageObservers} onChange={(ids) => setV({ ...v, observerIds: ids })}
+              emptyText="Nenhum Observador com acesso ao quadro"
+            />
+            {canEdit && !canManageObservers && (
+              <p className="text-xs text-muted-foreground">Só quem criou a tarefa ou um Administrador inclui observadores.</p>
+            )}
+          </div>
 
           {props.sideBottom}
         </aside>

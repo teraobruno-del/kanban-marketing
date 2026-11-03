@@ -34,7 +34,7 @@ interface Props {
 }
 
 const EMPTY: CardFormValues = {
-  title: "", description: "", dueDate: null, requesterAreaId: "", labelIds: [], assigneeIds: [],
+  title: "", description: "", dueDate: null, requesterAreaId: "", labelIds: [], assigneeIds: [], observerIds: [],
   recurrence: { frequency: null, endDate: null },
 };
 
@@ -146,6 +146,7 @@ function CardDialogBody({
           initial={EMPTY}
           canEdit
           canChangeDueDate
+          canManageObservers
           alwaysShowSubmit
           submitLabel="Criar tarefa"
           onDirtyChange={onDirtyChange}
@@ -235,10 +236,12 @@ function CardDialogBody({
           requesterAreaId: detail.area.id,
           labelIds: detail.labels.map((l) => l.id),
           assigneeIds: detail.assignees.map((a) => a.id),
+          observerIds: detail.observers.map((o) => o.id),
           recurrence: { frequency: detail.recurrence?.frequency ?? null, endDate: detail.recurrence?.endDate ?? null },
         }}
         canEdit={detail.permissions.canEdit}
         canChangeDueDate={detail.permissions.canChangeDueDate}
+        canManageObservers={detail.permissions.canManageObservers}
         submitLabel="Salvar alterações"
         onDirtyChange={(d) => { setFormDirty(d); onDirtyChange(d); }}
         onSubmit={async (values) => {

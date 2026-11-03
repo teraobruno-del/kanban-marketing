@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  canApprove, canBeAssignee, canChangeDueDate, canComment, canDeleteAttachment, canDeleteCard, canDeleteComment, canEditCards, canEditComment, canManage, canViewBoard,
+  canApprove, canBeAssignee, canBeObserver, canChangeDueDate, canManageObservers, canComment, canDeleteAttachment, canDeleteCard, canDeleteComment, canEditCards, canEditComment, canManage, canViewBoard,
   type Actor,
 } from "./permissions";
 
@@ -103,5 +103,20 @@ describe("Comentários e anexos (F3)", () => {
     expect(canDeleteAttachment(member, inBoard, { uploadedById: "outro" })).toBe(false);
     expect(canDeleteAttachment(admin, outBoard, { uploadedById: "outro" })).toBe(true);
     expect(canDeleteAttachment(observer, inBoard, { uploadedById: "o" })).toBe(false);
+  });
+});
+
+describe("Observadores da tarefa", () => {
+  it("só usuários com papel Observador e acesso ao quadro", () => {
+    expect(canBeObserver(observer, inBoard)).toBe(true);
+    expect(canBeObserver(observer, outBoard)).toBe(false);
+    expect(canBeObserver(member, inBoard)).toBe(false);
+    expect(canBeObserver({ ...observer, isActive: false }, inBoard)).toBe(false);
+  });
+  it("incluir/retirar: quem criou a tarefa ou Administrador", () => {
+    expect(canManageObservers(member, inBoard, { createdById: "m" })).toBe(true);
+    expect(canManageObservers(member, inBoard, { createdById: "outro" })).toBe(false);
+    expect(canManageObservers(admin, outBoard, { createdById: "outro" })).toBe(true);
+    expect(canManageObservers(observer, inBoard, { createdById: "o" })).toBe(false);
   });
 });

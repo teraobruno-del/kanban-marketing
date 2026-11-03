@@ -1,5 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
-import { canBeAssignee, type Actor, type Role } from "@/lib/auth/permissions";
+import { canBeAssignee, canBeObserver, type Actor, type Role } from "@/lib/auth/permissions";
 import { dateOnlyFromDb, dateOnlyToDb, todayInSaoPaulo } from "@/lib/dates/day";
 import { getNextRecurrenceDate } from "@/lib/dates/recurrence";
 import { invalid } from "@/server/errors";
@@ -58,6 +58,9 @@ export async function spawnNextRecurrence(tx: Tx, cardId: string, actor: Actor, 
       assignees: {
         include: { user: { select: { id: true, role: true, isActive: true, boardMemberships: { select: { boardId: true } } } } },
       },
+      observers: {
+        include: { user: { select: { id: true, role: true, isActive: true, boardMemberships: { select: { boardId: true } } } } },
+      },
       checklists: { orderBy: { position: "asc" }, include: { items: { orderBy: { position: "asc" } } } },
     },
   });
@@ -82,6 +85,15 @@ export async function spawnNextRecurrence(tx: Tx, cardId: string, actor: Actor, 
     )
     .map((a) => a.userId);
 
+  const observerIds = card.observers
+    .filter(({ user }) =>
+      canBeObserver(
+        { id: user.id, role: user.role as Role, isActive: user.isActive },
+        { isBoardMember: user.boardMemberships.some((m) => m.boardId === card.boardId) },
+      ),
+    )
+    .map((o) => o.userId);
+
   const child = await tx.card.create({
     data: {
       boardId: card.boardId,
@@ -99,6 +111,7 @@ export async function spawnNextRecurrence(tx: Tx, cardId: string, actor: Actor, 
       createdAt: now,
       labels: { create: card.labels.filter((l) => l.label.isActive).map((l) => ({ labelId: l.labelId })) },
       assignees: { create: assigneeIds.map((userId) => ({ userId })) },
+      observers: { create: observerIds.map((userId) => ({ userId })) },
       checklists: {
         create: card.checklists.map((cl) => ({
           title: cl.title,
@@ -115,6 +128,6 @@ export async function spawnNextRecurrence(tx: Tx, cardId: string, actor: Actor, 
       { cardId: card.id, boardId: card.boardId, actorId: actor.id, type: "RECURRENCE_SPAWNED", data: { childId: child.id, dueDate: nextDue }, createdAt: now },
     ],
   });
-  await createNotifications(tx, assigneeIds, { type: "RECURRENCE_CREATED", cardId: child.id, actorId: actor.id });
+  await createNotifications(tx, [...assigneeIds, ...observerIds], { type: "RECURRENCE_CREATED", cardId: child.id, actorId: actor.id });
   return { id: child.id, dueDate: nextDue };
 }

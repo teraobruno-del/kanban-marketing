@@ -93,3 +93,14 @@ export function canDeleteComment(actor: Actor, comment: { authorId: string }): b
 export function canDeleteAttachment(actor: Actor, access: BoardAccess, attachment: { uploadedById: string }): boolean {
   return canEditCards(actor, access) && (actor.role === "ADMIN" || attachment.uploadedById === actor.id);
 }
+
+/** Pode ser observador da tarefa: usuário ativo com papel Observador e acesso ao quadro. */
+export function canBeObserver(user: Actor, access: BoardAccess): boolean {
+  return user.isActive && user.role === "OBSERVER" && access.isBoardMember;
+}
+
+/** Incluir/retirar observadores da tarefa: quem criou a tarefa ou Administrador. */
+export function canManageObservers(actor: Actor, access: BoardAccess, card: { createdById: string }): boolean {
+  if (!canEditCards(actor, access)) return false;
+  return actor.role === "ADMIN" || card.createdById === actor.id;
+}

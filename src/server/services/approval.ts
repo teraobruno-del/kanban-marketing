@@ -16,7 +16,7 @@ type Tx = Prisma.TransactionClient;
 async function loadCard(db: Db, actor: Actor, cardId: string) {
   const card = await db.card.findUnique({
     where: { id: cardId },
-    include: { assignees: { select: { userId: true } } },
+    include: { assignees: { select: { userId: true } }, observers: { select: { userId: true } } },
   });
   if (!card || card.deletedAt) throw notFound("Tarefa não encontrada.");
   const { access } = await loadBoardAccess(db, actor, card.boardId);
@@ -81,7 +81,7 @@ export async function approveCard(
       });
     });
     const requester = await lastRequester(tx, cardId);
-    await notify(tx, [...card.assignees.map((a) => a.userId), ...(requester ? [requester] : [])], {
+    await notify(tx, [...card.assignees.map((a) => a.userId), ...card.observers.map((o) => o.userId), ...(requester ? [requester] : [])], {
       type: "CARD_APPROVED", cardId, actorId: actor.id,
     });
     return { nextRecurrence: spawned?.dueDate ?? null };
@@ -102,7 +102,7 @@ export async function rejectCard(db: Db, actor: Actor, cardId: string, rawReason
     });
     await addRejectionComment(tx, cardId, actor.id, reason, now);
     const requester = await lastRequester(tx, cardId);
-    await notify(tx, [...card.assignees.map((a) => a.userId), ...(requester ? [requester] : [])], {
+    await notify(tx, [...card.assignees.map((a) => a.userId), ...card.observers.map((o) => o.userId), ...(requester ? [requester] : [])], {
       type: "CARD_REJECTED", cardId, actorId: actor.id, message: reason,
     });
   });

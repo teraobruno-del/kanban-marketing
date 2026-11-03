@@ -1,7 +1,7 @@
 import type { Db } from "@/lib/db/client";
 import type { Prisma } from "@/generated/prisma/client";
 import {
-  canApprove, canBeAssignee, canChangeDueDate, canComment, canDeleteAttachment, canDeleteCard, canDeleteComment,
+  canApprove, canBeAssignee, canBeObserver, canChangeDueDate, canManageObservers, canComment, canDeleteAttachment, canDeleteCard, canDeleteComment,
   canEditCards, canEditComment, type Actor, type BoardAccess, type Role,
 } from "@/lib/auth/permissions";
 import { dateOnlyFromDb, dateOnlyToDb, parseDateOnly, todayInSaoPaulo, type DateOnly } from "@/lib/dates/day";
@@ -28,7 +28,7 @@ const cardListInclude = {
   assignees: { include: { user: { select: { id: true, name: true } } } },
   checklists: { select: { items: { select: { isDone: true } } } },
   coverAttachment: { select: { storagePath: true } },
-  _count: { select: { comments: { where: { deletedAt: null } }, attachments: true } },
+  _count: { select: { comments: { where: { deletedAt: null } }, attachments: true, observers: true } },
 } satisfies Prisma.CardInclude;
 
 /** Dependências opcionais (armazenamento de arquivos); nos testes podem faltar. */
@@ -39,12 +39,13 @@ export interface CardDeps {
 /** Tudo o que a tela do quadro precisa. */
 export async function getBoardView(db: Db, actor: Actor, boardId: string, deps: CardDeps = {}) {
   const { board, access } = await loadBoardAccess(db, actor, boardId);
-  const [cards, areas, labels, assignableUsers, mentionableUsers] = await Promise.all([
+  const [cards, areas, labels, assignableUsers, mentionableUsers, observableUsers] = await Promise.all([
     db.card.findMany({ where: { boardId, deletedAt: null }, include: cardListInclude }),
     db.requesterArea.findMany({ where: { boardId }, orderBy: { name: "asc" } }),
     db.label.findMany({ where: { boardId }, orderBy: { name: "asc" } }),
     listAssignableUsers(db, boardId),
     listMentionableUsers(db, boardId),
+    listObservableUsers(db, boardId),
   ]);
   const coverPaths = cards.flatMap((c) => (c.coverAttachment ? [c.coverAttachment.storagePath] : []));
   const coverUrls = deps.storage && coverPaths.length ? await deps.storage.createDownloadUrls(coverPaths, 60 * 60) : {};
@@ -69,6 +70,7 @@ export async function getBoardView(db: Db, actor: Actor, boardId: string, deps: 
         isRecurring: c.isRecurring,
         commentCount: c._count.comments,
         attachmentCount: c._count.attachments,
+        observerCount: c._count.observers,
         coverUrl: c.coverAttachment ? (coverUrls[c.coverAttachment.storagePath] ?? null) : null,
       };
     }),
@@ -76,7 +78,17 @@ export async function getBoardView(db: Db, actor: Actor, boardId: string, deps: 
     labels: labels.map(({ id, name, color, isActive }) => ({ id, name, color, isActive })),
     assignableUsers,
     mentionableUsers,
+    observableUsers,
   };
+}
+
+/** Usuários que podem ser observadores da tarefa: papel Observador, ativos, com acesso ao quadro. */
+export async function listObservableUsers(db: Db, boardId: string) {
+  return db.user.findMany({
+    where: { isActive: true, role: "OBSERVER", boardMemberships: { some: { boardId } } },
+    select: { id: true, name: true, email: true, role: true },
+    orderBy: { name: "asc" },
+  });
 }
 
 /** Usuários que podem ser responsáveis no quadro: Admins ativos + Membros ativos com acesso. */
@@ -86,7 +98,7 @@ export async function listAssignableUsers(db: Db, boardId: string) {
       isActive: true,
       OR: [{ role: "ADMIN" }, { role: "MEMBER", boardMemberships: { some: { boardId } } }],
     },
-    select: { id: true, name: true, role: true },
+    select: { id: true, name: true, email: true, role: true },
     orderBy: { name: "asc" },
   });
   return users;
@@ -99,6 +111,7 @@ export async function getCardDetail(db: Db, actor: Actor, cardId: string, deps: 
       ...cardListInclude,
       createdBy: { select: { id: true, name: true } },
       recurrenceChild: { select: { id: true } },
+      observers: { include: { user: { select: { id: true, name: true } } } },
       checklists: {
         orderBy: [{ position: "asc" }, { createdAt: "asc" }],
         include: { items: { orderBy: [{ position: "asc" }, { createdAt: "asc" }] } },
@@ -139,6 +152,7 @@ export async function getCardDetail(db: Db, actor: Actor, cardId: string, deps: 
     area: card.requesterArea,
     labels: card.labels.map((l) => l.label),
     assignees: card.assignees.map((a) => a.user),
+    observers: card.observers.map((o) => o.user),
     checklists: card.checklists.map((cl) => ({
       id: cl.id,
       title: cl.title,
@@ -171,6 +185,7 @@ export async function getCardDetail(db: Db, actor: Actor, cardId: string, deps: 
       canApprove: canApprove(actor, access, card),
       canEdit: canEditCards(actor, access),
       canChangeDueDate: canChangeDueDate(actor, access, card),
+      canManageObservers: canManageObservers(actor, access, card),
       canDelete: canDeleteCard(actor),
     },
   };
@@ -181,8 +196,8 @@ export async function getCardDetail(db: Db, actor: Actor, cardId: string, deps: 
 async function checkReferences(
   tx: Tx,
   boardId: string,
-  input: { requesterAreaId: string; labelIds: string[]; assigneeIds: string[] },
-  current?: { requesterAreaId: string; labelIds: string[]; assigneeIds: string[] },
+  input: { requesterAreaId: string; labelIds: string[]; assigneeIds: string[]; observerIds?: string[] },
+  current?: { requesterAreaId: string; labelIds: string[]; assigneeIds: string[]; observerIds?: string[] },
 ) {
   const area = await tx.requesterArea.findUnique({ where: { id: input.requesterAreaId } });
   if (!area || area.boardId !== boardId) throw invalid("Área solicitante inválida.");
@@ -212,7 +227,22 @@ async function checkReferences(
       );
     if (!ok) throw invalid("Responsável inválido: escolha Administradores ou Membros com acesso ao quadro.");
   }
-  return { labelIds, assigneeIds };
+  // Observadores: papel Observador com acesso ao quadro; nunca também responsável.
+  const observerIds = [...new Set(input.observerIds ?? [])].filter((id) => !assigneeIds.includes(id));
+  const newObservers = observerIds.filter((id) => !current?.observerIds?.includes(id));
+  if (newObservers.length > 0) {
+    const users = await tx.user.findMany({
+      where: { id: { in: newObservers } },
+      include: { boardMemberships: { where: { boardId }, select: { userId: true } } },
+    });
+    const ok =
+      users.length === newObservers.length &&
+      users.every((u) =>
+        canBeObserver({ id: u.id, role: u.role as Role, isActive: u.isActive }, { isBoardMember: u.boardMemberships.length > 0 }),
+      );
+    if (!ok) throw invalid("Observador inválido: escolha usuários com papel Observador que tenham acesso ao quadro.");
+  }
+  return { labelIds, assigneeIds, observerIds };
 }
 
 async function addEvent(
@@ -231,7 +261,11 @@ async function addEvent(
 async function requireEditableCard(db: Db | Tx, actor: Actor, cardId: string) {
   const card = await db.card.findUnique({
     where: { id: cardId },
-    include: { labels: { select: { labelId: true } }, assignees: { select: { userId: true } } },
+    include: {
+      labels: { select: { labelId: true } },
+      assignees: { select: { userId: true } },
+      observers: { select: { userId: true } },
+    },
   });
   if (!card || card.deletedAt) throw notFound("Card não encontrado.");
   const { access } = await loadBoardAccess(db as Db, actor, card.boardId);
@@ -261,7 +295,7 @@ export async function createCard(db: Db, actor: Actor, boardId: string, raw: Car
   const input = parse(cardInputSchema, raw);
 
   return db.$transaction(async (tx) => {
-    const { labelIds, assigneeIds } = await checkReferences(tx, boardId, input);
+    const { labelIds, assigneeIds, observerIds } = await checkReferences(tx, boardId, input);
     const stage = stageForNewCard(input.dueDate);
     const card = await tx.card.create({
       data: {
@@ -276,6 +310,7 @@ export async function createCard(db: Db, actor: Actor, boardId: string, raw: Car
         ...recurrenceData(input.recurrence, input.dueDate),
         labels: { create: labelIds.map((labelId) => ({ labelId })) },
         assignees: { create: assigneeIds.map((userId) => ({ userId })) },
+        observers: { create: observerIds.map((userId) => ({ userId })) },
       },
     });
     await addEvent(tx, card, actor, "CREATED", { toStage: stage, data: { dueDate: input.dueDate } }, now);
@@ -307,8 +342,9 @@ export async function updateCard(db: Db, actor: Actor, cardId: string, raw: Card
       requesterAreaId: card.requesterAreaId,
       labelIds: card.labels.map((l) => l.labelId),
       assigneeIds: card.assignees.map((a) => a.userId),
+      observerIds: card.observers.map((o) => o.userId),
     };
-    const { labelIds, assigneeIds } = await checkReferences(tx, card.boardId, input, current);
+    const { labelIds, assigneeIds, observerIds } = await checkReferences(tx, card.boardId, input, current);
     const newStage = dueChanged ? stageAfterDueDateChange(card.stage, input.dueDate) : card.stage;
 
     await tx.card.update({
@@ -349,6 +385,14 @@ export async function updateCard(db: Db, actor: Actor, cardId: string, raw: Card
         skipDuplicates: true,
       });
       await addEvent(tx, card, actor, "ASSIGNEES_CHANGED", { data: { assigneeIds } }, now);
+    }
+    if (!sameSet(observerIds, current.observerIds)) {
+      if (!canManageObservers(actor, access, card)) {
+        throw forbidden("Só quem criou a tarefa ou um Administrador pode incluir ou retirar observadores.");
+      }
+      await tx.cardObserver.deleteMany({ where: { cardId, userId: { notIn: observerIds } } });
+      await tx.cardObserver.createMany({ data: observerIds.map((userId) => ({ cardId, userId })), skipDuplicates: true });
+      await addEvent(tx, card, actor, "OBSERVERS_CHANGED", { data: { observerIds } }, now);
     }
   });
 }

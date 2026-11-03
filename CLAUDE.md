@@ -35,6 +35,9 @@ Leia antes de qualquer trabalho:
   Admin faz tudo e vê todos os quadros. Membro cria/edita/move cards nos quadros em que participa e só altera prazo
   dos cards que **ele criou**. Observador só vê e comenta. Excluir card, gerenciar quadros/áreas/labels/usuários e
   dashboard: só Admin. Excluir usuário = desativar. Sem cadastro aberto; Google só para e-mail já cadastrado.
+- **Observadores da tarefa** (tabela `card_observers`): só usuários com papel Observador e acesso ao quadro
+  (`canBeObserver`); incluir/retirar = quem criou a tarefa ou Admin (`canManageObservers`, também no RLS).
+  Recebem os mesmos avisos dos responsáveis; a recorrência os copia. Responsáveis e Observadores usam `PeoplePicker`.
 - Áreas e labels pertencem a cada quadro. Área é obrigatória e única por card. Em uso → só desativar.
 - Excluir card = lixeira (`deletedAt`). Anexos: máx. 10 MB (`MAX_ATTACHMENT_BYTES`), validar no navegador e no servidor.
 - Toda mudança de etapa gera `CardEvent` (fromStage, toStage, autor, data/hora) — base do dashboard.

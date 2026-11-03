@@ -22,7 +22,7 @@ export async function listMentionableUsers(db: Db | Tx, boardId: string) {
 async function loadCardForComment(db: Db, actor: Actor, cardId: string) {
   const card = await db.card.findUnique({
     where: { id: cardId },
-    include: { assignees: { select: { userId: true } } },
+    include: { assignees: { select: { userId: true } }, observers: { select: { userId: true } } },
   });
   if (!card || card.deletedAt) throw notFound("Tarefa não encontrada.");
   const { access } = await loadBoardAccess(db, actor, card.boardId);
@@ -76,7 +76,8 @@ export async function addComment(
       data: { cardId, boardId: card.boardId, actorId: actor.id, type: "COMMENTED", data: { commentId: comment.id }, createdAt: now },
     });
     await createNotifications(tx, mentionIds, { type: "COMMENT_MENTION", cardId, actorId: actor.id });
-    const others = [card.createdById, ...card.assignees.map((a) => a.userId)].filter((id) => !mentionIds.includes(id));
+    const others = [card.createdById, ...card.assignees.map((a) => a.userId), ...card.observers.map((o) => o.userId)]
+      .filter((id) => !mentionIds.includes(id));
     await createNotifications(tx, others, { type: "COMMENT_ADDED", cardId, actorId: actor.id });
     return { id: comment.id };
   });

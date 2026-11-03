@@ -50,6 +50,7 @@ export const cardInputSchema = z
     requesterAreaId: id,
     labelIds: z.array(id).max(30).default([]),
     assigneeIds: z.array(id).max(30).default([]),
+    observerIds: z.array(id).max(30).default([]),
     recurrence: recurrenceSchema.default({ frequency: null, endDate: null }),
   })
   .superRefine((v, ctx) => {

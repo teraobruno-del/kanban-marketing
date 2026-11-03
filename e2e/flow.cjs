@@ -102,7 +102,12 @@ let PAGE;
   }
   await newCard("Post Instagram", "RH", today, async () => {
     await dlg().getByRole("button", { name: "Vídeo" }).click();
-    await dlg().getByRole("button", { name: /Ana Lima/ }).click();
+    await page.fill("#assignee-picker", "ana");
+    await page.getByRole("option", { name: /Ana Lima/ }).waitFor();
+    await page.keyboard.press("Enter");
+    await page.fill("#observer-picker", "ott");
+    await page.getByRole("option", { name: /Otto Reis/ }).click();
+    await dlg().getByRole("button", { name: "Remover Otto Reis" }).waitFor();
     await page.fill("#desc", "**Importante:** usar a arte nova\n\n- legenda\n- hashtags");
   });
   await page.fill("input[placeholder='Nova checklist (ex.: Etapas)']", "Etapas");
@@ -136,7 +141,8 @@ let PAGE;
     await column(page, c).getByText(t, { exact: true }).waitFor();
   }
   await column(page, "ATRASADAS").getByText("Atrasado há 2 dias").waitFor();
-  log("cards nas colunas certas; prazo em linguagem natural");
+  await column(page, "HOJE").getByTitle("Observadores").getByText("1").waitFor();
+  log("cards nas colunas certas; prazo em linguagem natural; observador com 👁 no card");
 
   // Editar e tentar fechar sem salvar → pergunta
   await page.getByText("Briefing campanha", { exact: true }).click();
@@ -184,6 +190,8 @@ let PAGE;
   if (await page.getByRole("link", { name: /Configurações/ }).count()) throw new Error("Membro vê Configurações");
   await page.getByText("Vídeo institucional", { exact: true }).click();
   await page.getByText("Só o Administrador ou quem criou a tarefa").waitFor();
+  await page.getByText("Só quem criou a tarefa ou um Administrador inclui observadores.").waitFor();
+  if (await page.locator("#observer-picker").count()) throw new Error("Membro não deveria editar observadores de tarefa alheia");
   if (!(await page.locator("#due").isDisabled())) throw new Error("Prazo deveria estar bloqueado para o Membro");
 
   // ── Aprovação: Ana envia a tarefa criada pelo chefe ──
@@ -286,7 +294,8 @@ let PAGE;
   await page.fill("#due", today);
   await page.selectOption("#repeat", "MONTHLY");
   await page.getByText(/Repete todo mês \(dia \d+\), sem data para terminar/).waitFor();
-  await page.getByRole("dialog").getByRole("button", { name: /Ana Lima/ }).click();
+  await page.fill("#assignee-picker", "lima");
+  await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "Criar tarefa" }).click();
   await page.getByRole("dialog").getByText("Etapa atual").waitFor();
   await page.keyboard.press("Escape");

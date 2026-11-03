@@ -31,6 +31,7 @@ export function describeEvent(e: Ev): string {
     }
     case "ASSIGNEES_CHANGED": return "alterou os responsáveis";
     case "LABELS_CHANGED": return "alterou as etiquetas";
+    case "OBSERVERS_CHANGED": return "alterou os observadores";
     case "CHECKLIST_CHANGED":
       switch (d.action) {
         case "checklist_added": return `criou a checklist “${d.title}”`;
